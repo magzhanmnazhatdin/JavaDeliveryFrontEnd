@@ -23,15 +23,18 @@ import { adminApi } from '../../services/api';
 const statusConfig = {
   PENDING: { label: 'Pending', color: '#FFA000', icon: Clock },
   CONFIRMED: { label: 'Confirmed', color: '#1976D2', icon: Package },
+  ACCEPTED_BY_RESTAURANT: { label: 'Accepted', color: '#0288D1', icon: Package },
   PREPARING: { label: 'Preparing', color: '#7B1FA2', icon: Package },
-  READY: { label: 'Ready', color: '#00796B', icon: Package },
-  DELIVERING: { label: 'Delivering', color: '#E64A19', icon: Truck },
+  READY_FOR_PICKUP: { label: 'Ready for Pickup', color: '#00796B', icon: Package },
+  PICKED_UP: { label: 'Picked Up', color: '#5D4037', icon: Package },
+  IN_DELIVERY: { label: 'In Delivery', color: '#E64A19', icon: Truck },
   DELIVERED: { label: 'Delivered', color: '#388E3C', icon: CheckCircle },
   CANCELLED: { label: 'Cancelled', color: '#D32F2F', icon: XCircle },
+  REJECTED: { label: 'Rejected', color: '#C62828', icon: XCircle },
 };
 
 const AdminOrders = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -43,14 +46,39 @@ const AdminOrders = () => {
   const loadOrders = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await adminApi.getAllOrders({
-        search,
-        status: statusFilter || undefined,
-        page,
-        size: 20,
-      });
-      setOrders(response.data.content || response.data || []);
-      setTotalPages(response.data.totalPages || 1);
+      const params = { page, size: 20 };
+      let response;
+      if (statusFilter) {
+        response = await adminApi.getOrdersByStatus(statusFilter, params);
+      } else {
+        response = await adminApi.getAllOrders(params);
+      }
+
+      let list = response.data.content || response.data || [];
+      let pages = response.data.totalPages || 1;
+
+      const trimmedSearch = search.trim();
+      if (trimmedSearch) {
+        const looksLikeId = /^[0-9a-fA-F-]{36}$/.test(trimmedSearch);
+        if (looksLikeId) {
+          try {
+            const orderRes = await adminApi.getOrderById(trimmedSearch);
+            list = [orderRes.data];
+            pages = 1;
+          } catch (err) {
+            list = [];
+            pages = 1;
+          }
+        } else {
+          list = list.filter((order) =>
+            order.deliveryAddress?.toLowerCase().includes(trimmedSearch.toLowerCase())
+          );
+          pages = 1;
+        }
+      }
+
+      setOrders(list);
+      setTotalPages(pages);
     } catch (err) {
       console.error('Failed to load orders:', err);
     } finally {
@@ -59,12 +87,15 @@ const AdminOrders = () => {
   }, [search, statusFilter, page]);
 
   useEffect(() => {
+    if (authLoading) {
+      return;
+    }
     if (!isAuthenticated) {
       navigate('/login');
       return;
     }
     loadOrders();
-  }, [isAuthenticated, navigate, loadOrders]);
+  }, [authLoading, isAuthenticated, navigate, loadOrders]);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -131,7 +162,7 @@ const AdminOrders = () => {
             <Search size={18} />
             <input
               type="text"
-              placeholder="Search by ID or customer..."
+              placeholder="Search by ID or address..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -147,15 +178,18 @@ const AdminOrders = () => {
             <option value="">All Statuses</option>
             <option value="PENDING">Pending</option>
             <option value="CONFIRMED">Confirmed</option>
+            <option value="ACCEPTED_BY_RESTAURANT">Accepted</option>
             <option value="PREPARING">Preparing</option>
-            <option value="READY">Ready</option>
-            <option value="DELIVERING">Delivering</option>
+            <option value="READY_FOR_PICKUP">Ready for Pickup</option>
+            <option value="PICKED_UP">Picked Up</option>
+            <option value="IN_DELIVERY">In Delivery</option>
             <option value="DELIVERED">Delivered</option>
             <option value="CANCELLED">Cancelled</option>
+            <option value="REJECTED">Rejected</option>
           </select>
         </div>
 
-        {loading ? (
+        {(authLoading || loading) ? (
           <div className="loading">
             <div className="loading-spinner"></div>
           </div>
@@ -168,8 +202,8 @@ const AdminOrders = () => {
                     <th>ID</th>
                     <th>Date</th>
                     <th>Restaurant</th>
-                    <th>Customer</th>
-                    <th>Amount</th>
+                    <th>Address</th>
+                    <th>Total</th>
                     <th>Status</th>
                     <th>Actions</th>
                   </tr>
@@ -190,14 +224,9 @@ const AdminOrders = () => {
                         <tr key={order.id}>
                           <td>#{order.id}</td>
                           <td>{formatDate(order.createdAt)}</td>
-                          <td>{order.restaurantName}</td>
-                          <td>
-                            <div className="customer-info">
-                              <span>{order.customerName}</span>
-                              <small>{order.customerEmail}</small>
-                            </div>
-                          </td>
-                          <td>${order.totalAmount}</td>
+                          <td>{order.restaurantId}</td>
+                          <td>{order.deliveryAddress || '—'}</td>
+                          <td>${Number(order.totalPrice || 0).toFixed(2)}</td>
                           <td>
                             <span
                               className="status-badge"

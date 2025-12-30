@@ -11,6 +11,7 @@ import {
   Minus,
   Heart,
   User,
+  Shield,
   Utensils,
   Truck,
   Store,
@@ -138,9 +139,16 @@ const HomePage = () => {
             </button>
 
             {isAuthenticated ? (
-              <Link to="/profile" className="icon-btn user-btn">
-                <User size={18} />
-              </Link>
+              <>
+                {hasRole('ADMIN') && (
+                  <Link to="/admin" className="icon-btn admin-btn" title="Admin Panel">
+                    <Shield size={18} />
+                  </Link>
+                )}
+                <Link to="/profile" className="icon-btn user-btn">
+                  <User size={18} />
+                </Link>
+              </>
             ) : (
               <Link to="/login" className="text-btn">
                 Sign In

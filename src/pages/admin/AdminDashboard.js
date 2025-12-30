@@ -7,17 +7,13 @@ import {
   ShoppingBag,
   Truck,
   BarChart3,
-  TrendingUp,
-  TrendingDown,
-  AlertCircle,
-  CheckCircle,
   Clock,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { adminApi } from '../../services/api';
 
 const AdminDashboard = () => {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -25,8 +21,63 @@ const AdminDashboard = () => {
   const loadDashboard = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await adminApi.getDashboardStats();
-      setStats(response.data);
+      const pageParams = { size: 1 };
+      const [
+        usersRes,
+        restaurantsRes,
+        couriersRes,
+        ordersRes,
+        pendingRes,
+        confirmedRes,
+        acceptedRes,
+        preparingRes,
+        readyRes,
+        pickedUpRes,
+        inDeliveryRes,
+      ] = await Promise.all([
+        adminApi.getAllUsers(pageParams),
+        adminApi.getAllRestaurants(),
+        adminApi.getAllCouriers(),
+        adminApi.getAllOrders(pageParams),
+        adminApi.getOrdersByStatus('PENDING', pageParams),
+        adminApi.getOrdersByStatus('CONFIRMED', pageParams),
+        adminApi.getOrdersByStatus('ACCEPTED_BY_RESTAURANT', pageParams),
+        adminApi.getOrdersByStatus('PREPARING', pageParams),
+        adminApi.getOrdersByStatus('READY_FOR_PICKUP', pageParams),
+        adminApi.getOrdersByStatus('PICKED_UP', pageParams),
+        adminApi.getOrdersByStatus('IN_DELIVERY', pageParams),
+      ]);
+
+      const getTotal = (res) =>
+        res?.data?.totalElements ??
+        res?.data?.content?.length ??
+        res?.data?.length ??
+        0;
+
+      const totalUsers = getTotal(usersRes);
+      const totalRestaurants = getTotal(restaurantsRes);
+      const totalCouriers = getTotal(couriersRes);
+      const availableCouriers = (couriersRes.data || []).filter(
+        (courier) => courier.status === 'AVAILABLE'
+      ).length;
+      const totalOrders = getTotal(ordersRes);
+      const activeOrders =
+        getTotal(pendingRes) +
+        getTotal(confirmedRes) +
+        getTotal(acceptedRes) +
+        getTotal(preparingRes) +
+        getTotal(readyRes) +
+        getTotal(pickedUpRes) +
+        getTotal(inDeliveryRes);
+
+      setStats({
+        totalUsers,
+        totalRestaurants,
+        totalOrders,
+        activeOrders,
+        totalCouriers,
+        availableCouriers,
+      });
     } catch (err) {
       console.error('Failed to load dashboard:', err);
     } finally {
@@ -35,14 +86,17 @@ const AdminDashboard = () => {
   }, []);
 
   useEffect(() => {
+    if (authLoading) {
+      return;
+    }
     if (!isAuthenticated) {
       navigate('/login');
       return;
     }
     loadDashboard();
-  }, [isAuthenticated, navigate, loadDashboard]);
+  }, [authLoading, isAuthenticated, navigate, loadDashboard]);
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="panel-loading">
         <div className="loading-spinner"></div>
@@ -103,12 +157,6 @@ const AdminDashboard = () => {
               <span className="stat-value">{stats?.totalUsers || 0}</span>
               <span className="stat-label">Users</span>
             </div>
-            {stats?.newUsersToday > 0 && (
-              <span className="stat-change positive">
-                <TrendingUp size={14} />
-                +{stats.newUsersToday} today
-              </span>
-            )}
           </div>
 
           <div className="stat-card">
@@ -119,12 +167,6 @@ const AdminDashboard = () => {
               <span className="stat-value">{stats?.totalRestaurants || 0}</span>
               <span className="stat-label">Restaurants</span>
             </div>
-            {stats?.pendingRestaurants > 0 && (
-              <span className="stat-change warning">
-                <AlertCircle size={14} />
-                {stats.pendingRestaurants} pending
-              </span>
-            )}
           </div>
 
           <div className="stat-card">
@@ -132,24 +174,8 @@ const AdminDashboard = () => {
               <ShoppingBag size={24} />
             </div>
             <div className="stat-info">
-              <span className="stat-value">{stats?.ordersToday || 0}</span>
-              <span className="stat-label">Orders Today</span>
-            </div>
-            {stats?.ordersChange && (
-              <span className={`stat-change ${stats.ordersChange > 0 ? 'positive' : 'negative'}`}>
-                {stats.ordersChange > 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-                {stats.ordersChange > 0 ? '+' : ''}{stats.ordersChange}%
-              </span>
-            )}
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-icon revenue">
-              <BarChart3 size={24} />
-            </div>
-            <div className="stat-info">
-              <span className="stat-value">${stats?.revenueToday || 0}</span>
-              <span className="stat-label">Revenue Today</span>
+              <span className="stat-value">{stats?.totalOrders || 0}</span>
+              <span className="stat-label">Total Orders</span>
             </div>
           </div>
 
@@ -158,8 +184,18 @@ const AdminDashboard = () => {
               <Truck size={24} />
             </div>
             <div className="stat-info">
-              <span className="stat-value">{stats?.activeCouriers || 0}</span>
-              <span className="stat-label">Couriers Online</span>
+              <span className="stat-value">{stats?.totalCouriers || 0}</span>
+              <span className="stat-label">Couriers</span>
+            </div>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-icon pending">
+              <Clock size={24} />
+            </div>
+            <div className="stat-info">
+              <span className="stat-value">{stats?.availableCouriers || 0}</span>
+              <span className="stat-label">Couriers Available</span>
             </div>
           </div>
 
@@ -177,38 +213,6 @@ const AdminDashboard = () => {
         <div className="dashboard-grid">
           <div className="dashboard-section">
             <div className="section-header">
-              <h2>Needs Attention</h2>
-            </div>
-            <div className="alerts-list">
-              {stats?.pendingRestaurants > 0 && (
-                <Link to="/admin/restaurants?status=pending" className="alert-item warning">
-                  <AlertCircle size={20} />
-                  <span>{stats.pendingRestaurants} restaurants pending approval</span>
-                </Link>
-              )}
-              {stats?.pendingCouriers > 0 && (
-                <Link to="/admin/couriers?status=pending" className="alert-item warning">
-                  <AlertCircle size={20} />
-                  <span>{stats.pendingCouriers} courier applications</span>
-                </Link>
-              )}
-              {stats?.problemOrders > 0 && (
-                <Link to="/admin/orders?status=problem" className="alert-item danger">
-                  <AlertCircle size={20} />
-                  <span>{stats.problemOrders} problem orders</span>
-                </Link>
-              )}
-              {!stats?.pendingRestaurants && !stats?.pendingCouriers && !stats?.problemOrders && (
-                <div className="alert-item success">
-                  <CheckCircle size={20} />
-                  <span>All clear, no urgent tasks</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="dashboard-section">
-            <div className="section-header">
               <h2>Quick Actions</h2>
             </div>
             <div className="quick-actions">
@@ -218,7 +222,7 @@ const AdminDashboard = () => {
               </Link>
               <Link to="/admin/restaurants" className="action-btn">
                 <Store size={20} />
-                Moderate Restaurants
+                Manage Restaurants
               </Link>
               <Link to="/admin/orders" className="action-btn">
                 <ShoppingBag size={20} />

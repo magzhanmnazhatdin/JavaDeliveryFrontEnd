@@ -181,30 +181,43 @@ export const courierApi = {
 // ============ ADMIN API ============
 export const adminApi = {
   // User management
-  getAllUsers: (params) => api.get('/api/admin/users', { params }),
-  getUserById: (id) => api.get(`/api/admin/users/${id}`),
-  updateUser: (id, data) => api.put(`/api/admin/users/${id}`, data),
-  deleteUser: (id) => api.delete(`/api/admin/users/${id}`),
-  changeUserRole: (id, role) => api.patch(`/api/admin/users/${id}/role`, { role }),
+  getAllUsers: (params = {}) => {
+    const { search, role, ...rest } = params;
+    if (search) {
+      return api.get('/api/users/search', { params: { query: search, ...rest } });
+    }
+    if (role) {
+      return api.get(`/api/users/role/${role}`, { params: rest });
+    }
+    return api.get('/api/users', { params: rest });
+  },
+  getUserById: (id) => api.get(`/api/users/${id}`),
+  updateUser: (id, data) => api.put(`/api/users/${id}`, data),
+  updateUserStatus: (id, status) =>
+    api.patch(`/api/users/${id}/status`, null, { params: { status } }),
+  deleteUser: (id) => api.delete(`/api/users/${id}`),
 
   // Restaurant management
-  getAllRestaurants: (params) => api.get('/api/admin/restaurants', { params }),
-  approveRestaurant: (id) => api.post(`/api/admin/restaurants/${id}/approve`),
-  suspendRestaurant: (id, reason) =>
-    api.post(`/api/admin/restaurants/${id}/suspend`, { reason }),
-  deleteRestaurant: (id) => api.delete(`/api/admin/restaurants/${id}`),
+  getAllRestaurants: (params = {}) =>
+    api.get('/api/restaurants', { params: { activeOnly: false, ...params } }),
+  activateRestaurant: (id) => api.patch(`/api/restaurants/${id}/activate`),
+  deactivateRestaurant: (id) => api.patch(`/api/restaurants/${id}/deactivate`),
+  deleteRestaurant: (id) => api.delete(`/api/restaurants/${id}`),
 
   // Order management
-  getAllOrders: (params) => api.get('/api/admin/orders', { params }),
+  getAllOrders: (params) => api.get('/api/orders', { params }),
+  getOrdersByStatus: (status, params) =>
+    api.get(`/api/orders/status/${status}`, { params }),
+  getOrderById: (id) => api.get(`/api/orders/${id}`),
 
   // Courier management
-  getAllCouriers: (params) => api.get('/api/admin/couriers', { params }),
-  approveCourier: (id) => api.post(`/api/admin/couriers/${id}/approve`),
-  suspendCourier: (id) => api.post(`/api/admin/couriers/${id}/suspend`),
+  getAllCouriers: (params) => api.get('/api/couriers', { params }),
+  updateCourierStatus: (id, status) =>
+    api.patch(`/api/couriers/${id}/status`, { status }),
 
   // Statistics
-  getDashboardStats: () => api.get('/api/admin/statistics/dashboard'),
-  getRevenueStats: (params) => api.get('/api/admin/statistics/revenue', { params }),
+  getDashboardStats: () => api.get('/api/users', { params: { size: 1 } }),
+  getRevenueStats: (params) => api.get('/api/orders', { params }),
 };
 
 export default api;

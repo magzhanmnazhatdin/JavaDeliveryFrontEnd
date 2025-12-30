@@ -8,9 +8,7 @@ import {
   Truck,
   BarChart3,
   Search,
-  Edit2,
   Trash2,
-  Shield,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -25,7 +23,7 @@ const roleLabels = {
 };
 
 const AdminUsers = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -33,8 +31,6 @@ const AdminUsers = () => {
   const [roleFilter, setRoleFilter] = useState('');
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [showRoleModal, setShowRoleModal] = useState(false);
 
   const loadUsers = useCallback(async () => {
     try {
@@ -55,12 +51,15 @@ const AdminUsers = () => {
   }, [search, roleFilter, page]);
 
   useEffect(() => {
+    if (authLoading) {
+      return;
+    }
     if (!isAuthenticated) {
       navigate('/login');
       return;
     }
     loadUsers();
-  }, [isAuthenticated, navigate, loadUsers]);
+  }, [authLoading, isAuthenticated, navigate, loadUsers]);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -75,18 +74,6 @@ const AdminUsers = () => {
       loadUsers();
     } catch (err) {
       console.error('Failed to delete user:', err);
-    }
-  };
-
-  const handleRoleChange = async (newRole) => {
-    if (!selectedUser) return;
-    try {
-      await adminApi.changeUserRole(selectedUser.id, newRole);
-      setShowRoleModal(false);
-      setSelectedUser(null);
-      loadUsers();
-    } catch (err) {
-      console.error('Failed to change role:', err);
     }
   };
 
@@ -156,7 +143,7 @@ const AdminUsers = () => {
           </select>
         </div>
 
-        {loading ? (
+        {(authLoading || loading) ? (
           <div className="loading">
             <div className="loading-spinner"></div>
           </div>
@@ -170,7 +157,7 @@ const AdminUsers = () => {
                     <th>Name</th>
                     <th>Email</th>
                     <th>Role</th>
-                    <th>Registration Date</th>
+                    <th>Status</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -186,7 +173,7 @@ const AdminUsers = () => {
                       <tr key={user.id}>
                         <td>{user.id}</td>
                         <td>
-                          {user.firstName} {user.lastName}
+                          {user.fullName || user.email}
                         </td>
                         <td>{user.email}</td>
                         <td>
@@ -194,25 +181,8 @@ const AdminUsers = () => {
                             {roleLabels[user.role] || user.role}
                           </span>
                         </td>
-                        <td>
-                          {new Date(user.createdAt).toLocaleDateString('en-US')}
-                        </td>
+                        <td>{user.status || '—'}</td>
                         <td className="actions">
-                          <button
-                            onClick={() => {
-                              setSelectedUser(user);
-                              setShowRoleModal(true);
-                            }}
-                            title="Change role"
-                          >
-                            <Shield size={16} />
-                          </button>
-                          <button
-                            onClick={() => navigate(`/admin/users/${user.id}`)}
-                            title="Edit"
-                          >
-                            <Edit2 size={16} />
-                          </button>
                           <button
                             onClick={() => handleDelete(user.id)}
                             className="danger"
@@ -251,35 +221,6 @@ const AdminUsers = () => {
         )}
       </div>
 
-      {showRoleModal && selectedUser && (
-        <>
-          <div className="modal-overlay" onClick={() => setShowRoleModal(false)} />
-          <div className="modal">
-            <h2>Change User Role</h2>
-            <p>
-              {selectedUser.firstName} {selectedUser.lastName} ({selectedUser.email})
-            </p>
-            <p>Current role: {roleLabels[selectedUser.role]}</p>
-
-            <div className="role-buttons">
-              {Object.entries(roleLabels).map(([role, label]) => (
-                <button
-                  key={role}
-                  className={`role-btn ${selectedUser.role === role ? 'active' : ''}`}
-                  onClick={() => handleRoleChange(role)}
-                  disabled={selectedUser.role === role}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            <button className="btn-secondary" onClick={() => setShowRoleModal(false)}>
-              Cancel
-            </button>
-          </div>
-        </>
-      )}
     </div>
   );
 };

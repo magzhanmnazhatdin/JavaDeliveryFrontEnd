@@ -13,79 +13,82 @@ import {
   ChevronLeft,
   ChevronRight,
   Phone,
-  Star,
+  Mail,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { adminApi } from '../../services/api';
 
-const vehicleLabels = {
-  WALKING: 'Walking',
-  BICYCLE: 'Bicycle',
-  SCOOTER: 'Scooter',
-  MOTORCYCLE: 'Motorcycle',
-  CAR: 'Car',
-};
-
 const AdminCouriers = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [couriers, setCouriers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
+  const pageSize = 20;
 
   const loadCouriers = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await adminApi.getAllCouriers({
-        search,
-        status: statusFilter || undefined,
-        page,
-        size: 20,
-      });
-      setCouriers(response.data.content || response.data || []);
-      setTotalPages(response.data.totalPages || 1);
+      const response = await adminApi.getAllCouriers();
+      setCouriers(response.data || []);
     } catch (err) {
       console.error('Failed to load couriers:', err);
     } finally {
       setLoading(false);
     }
-  }, [search, statusFilter, page]);
+  }, []);
 
   useEffect(() => {
+    if (authLoading) {
+      return;
+    }
     if (!isAuthenticated) {
       navigate('/login');
       return;
     }
     loadCouriers();
-  }, [isAuthenticated, navigate, loadCouriers]);
+  }, [authLoading, isAuthenticated, navigate, loadCouriers]);
 
   const handleSearch = (e) => {
     e.preventDefault();
     setPage(0);
-    loadCouriers();
   };
 
-  const handleApprove = async (courierId) => {
+  const handleActivate = async (courierId) => {
     try {
-      await adminApi.approveCourier(courierId);
+      await adminApi.updateCourierStatus(courierId, 'AVAILABLE');
       loadCouriers();
     } catch (err) {
-      console.error('Failed to approve courier:', err);
+      console.error('Failed to update courier status:', err);
     }
   };
 
-  const handleSuspend = async (courierId) => {
-    if (!window.confirm('Suspend this courier?')) return;
+  const handleDeactivate = async (courierId) => {
     try {
-      await adminApi.suspendCourier(courierId);
+      await adminApi.updateCourierStatus(courierId, 'OFFLINE');
       loadCouriers();
     } catch (err) {
-      console.error('Failed to suspend courier:', err);
+      console.error('Failed to update courier status:', err);
     }
   };
+
+  const filteredCouriers = couriers.filter((courier) => {
+    const matchesSearch =
+      !search ||
+      courier.name?.toLowerCase().includes(search.toLowerCase()) ||
+      courier.email?.toLowerCase().includes(search.toLowerCase());
+    if (!matchesSearch) return false;
+    if (!statusFilter) return true;
+    return courier.status === statusFilter;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filteredCouriers.length / pageSize));
+  const visibleCouriers = filteredCouriers.slice(
+    page * pageSize,
+    page * pageSize + pageSize
+  );
 
   return (
     <div className="panel-page admin-panel">
@@ -146,41 +149,35 @@ const AdminCouriers = () => {
             }}
           >
             <option value="">All Statuses</option>
-            <option value="PENDING">Pending</option>
-            <option value="ACTIVE">Active</option>
-            <option value="SUSPENDED">Suspended</option>
-            <option value="ONLINE">Online</option>
+            <option value="AVAILABLE">Available</option>
+            <option value="BUSY">Busy</option>
+            <option value="OFFLINE">Offline</option>
           </select>
         </div>
 
-        {loading ? (
+        {(authLoading || loading) ? (
           <div className="loading">
             <div className="loading-spinner"></div>
           </div>
         ) : (
           <>
             <div className="couriers-grid">
-              {couriers.length === 0 ? (
+              {visibleCouriers.length === 0 ? (
                 <div className="empty-state">
                   <Truck size={48} />
                   <p>No couriers found</p>
                 </div>
               ) : (
-                couriers.map((courier) => (
+                visibleCouriers.map((courier) => (
                   <div key={courier.id} className="courier-card">
                     <div className="courier-header">
                       <div className="courier-avatar">
-                        {courier.firstName?.charAt(0)}
-                        {courier.lastName?.charAt(0)}
+                        {courier.name?.charAt(0)}
                       </div>
                       <div className="courier-info">
-                        <h3>
-                          {courier.firstName} {courier.lastName}
-                        </h3>
+                        <h3>{courier.name || 'Courier'}</h3>
                         <span className={`status ${courier.status?.toLowerCase()}`}>
-                          {courier.status === 'PENDING' && 'Pending'}
-                          {courier.status === 'ACTIVE' && (courier.available ? 'Online' : 'Offline')}
-                          {courier.status === 'SUSPENDED' && 'Suspended'}
+                          {courier.status || '—'}
                         </span>
                       </div>
                     </div>
@@ -192,70 +189,42 @@ const AdminCouriers = () => {
                           {courier.phone}
                         </div>
                       )}
-                      {courier.vehicleType && (
+                      {courier.email && (
                         <div className="detail">
-                          <Truck size={14} />
-                          {vehicleLabels[courier.vehicleType] || courier.vehicleType}
-                          {courier.vehicleNumber && ` (${courier.vehicleNumber})`}
+                          <Mail size={14} />
+                          {courier.email}
                         </div>
                       )}
                     </div>
 
                     <div className="courier-stats">
                       <div className="stat">
-                        <span className="value">{courier.totalDeliveries || 0}</span>
+                        <span className="value">—</span>
                         <span className="label">Deliveries</span>
                       </div>
                       <div className="stat">
-                        <span className="value">
-                          {courier.rating ? (
-                            <>
-                              <Star size={12} fill="currentColor" />
-                              {courier.rating.toFixed(1)}
-                            </>
-                          ) : (
-                            '—'
-                          )}
-                        </span>
+                        <span className="value">—</span>
                         <span className="label">Rating</span>
                       </div>
                     </div>
 
                     <div className="courier-actions">
-                      {courier.status === 'PENDING' && (
-                        <>
-                          <button
-                            className="approve"
-                            onClick={() => handleApprove(courier.id)}
-                          >
-                            <CheckCircle size={16} />
-                            Approve
-                          </button>
-                          <button
-                            className="reject"
-                            onClick={() => handleSuspend(courier.id)}
-                          >
-                            <XCircle size={16} />
-                            Reject
-                          </button>
-                        </>
-                      )}
-                      {courier.status === 'ACTIVE' && (
-                        <button
-                          className="suspend"
-                          onClick={() => handleSuspend(courier.id)}
-                        >
-                          <XCircle size={16} />
-                          Suspend
-                        </button>
-                      )}
-                      {courier.status === 'SUSPENDED' && (
+                      {courier.status === 'OFFLINE' && (
                         <button
                           className="approve"
-                          onClick={() => handleApprove(courier.id)}
+                          onClick={() => handleActivate(courier.id)}
                         >
                           <CheckCircle size={16} />
-                          Reactivate
+                          Set Available
+                        </button>
+                      )}
+                      {courier.status === 'AVAILABLE' && (
+                        <button
+                          className="suspend"
+                          onClick={() => handleDeactivate(courier.id)}
+                        >
+                          <XCircle size={16} />
+                          Set Offline
                         </button>
                       )}
                     </div>

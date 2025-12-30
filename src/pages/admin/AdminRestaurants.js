@@ -19,73 +19,75 @@ import { useAuth } from '../../context/AuthContext';
 import { adminApi } from '../../services/api';
 
 const AdminRestaurants = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
+  const pageSize = 20;
 
   const loadRestaurants = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await adminApi.getAllRestaurants({
-        search,
-        status: statusFilter || undefined,
-        page,
-        size: 20,
-      });
-      setRestaurants(response.data.content || response.data || []);
-      setTotalPages(response.data.totalPages || 1);
+      const response = await adminApi.getAllRestaurants();
+      setRestaurants(response.data || []);
     } catch (err) {
       console.error('Failed to load restaurants:', err);
     } finally {
       setLoading(false);
     }
-  }, [search, statusFilter, page]);
+  }, []);
 
   useEffect(() => {
+    if (authLoading) {
+      return;
+    }
     if (!isAuthenticated) {
       navigate('/login');
       return;
     }
     loadRestaurants();
-  }, [isAuthenticated, navigate, loadRestaurants]);
+  }, [authLoading, isAuthenticated, navigate, loadRestaurants]);
 
   const handleSearch = (e) => {
     e.preventDefault();
     setPage(0);
-    loadRestaurants();
   };
 
-  const handleApprove = async (restaurantId) => {
+  const handleActivate = async (restaurantId) => {
     try {
-      await adminApi.approveRestaurant(restaurantId);
+      await adminApi.activateRestaurant(restaurantId);
       loadRestaurants();
     } catch (err) {
-      console.error('Failed to approve restaurant:', err);
+      console.error('Failed to activate restaurant:', err);
     }
   };
 
-  const handleSuspend = async (restaurantId) => {
-    const reason = window.prompt('Enter suspension reason:');
-    if (!reason) return;
+  const handleDeactivate = async (restaurantId) => {
     try {
-      await adminApi.suspendRestaurant(restaurantId, reason);
+      await adminApi.deactivateRestaurant(restaurantId);
       loadRestaurants();
     } catch (err) {
-      console.error('Failed to suspend restaurant:', err);
+      console.error('Failed to deactivate restaurant:', err);
     }
   };
 
-  const statusLabels = {
-    PENDING: 'Pending',
-    ACTIVE: 'Active',
-    SUSPENDED: 'Suspended',
-    INACTIVE: 'Inactive',
-  };
+  const filteredRestaurants = restaurants.filter((restaurant) => {
+    const matchesSearch =
+      !search ||
+      restaurant.name?.toLowerCase().includes(search.toLowerCase());
+    if (!matchesSearch) return false;
+    if (!statusFilter) return true;
+    return statusFilter === 'ACTIVE' ? restaurant.isActive : !restaurant.isActive;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filteredRestaurants.length / pageSize));
+  const visibleRestaurants = filteredRestaurants.slice(
+    page * pageSize,
+    page * pageSize + pageSize
+  );
 
   return (
     <div className="panel-page admin-panel">
@@ -146,55 +148,54 @@ const AdminRestaurants = () => {
             }}
           >
             <option value="">All Statuses</option>
-            <option value="PENDING">Pending</option>
             <option value="ACTIVE">Active</option>
-            <option value="SUSPENDED">Suspended</option>
             <option value="INACTIVE">Inactive</option>
           </select>
         </div>
 
-        {loading ? (
+        {(authLoading || loading) ? (
           <div className="loading">
             <div className="loading-spinner"></div>
           </div>
         ) : (
           <>
             <div className="restaurants-grid admin">
-              {restaurants.length === 0 ? (
+              {visibleRestaurants.length === 0 ? (
                 <div className="empty-state">
                   <Store size={48} />
                   <p>No restaurants found</p>
                 </div>
               ) : (
-                restaurants.map((restaurant) => (
+                visibleRestaurants.map((restaurant) => (
                   <div key={restaurant.id} className="restaurant-card-admin">
                     <div className="card-image">
-                      {restaurant.image ? (
-                        <img src={restaurant.image} alt={restaurant.name} />
-                      ) : (
-                        <div className="placeholder">
-                          <Store size={32} />
-                        </div>
-                      )}
-                      <span className={`status-badge ${restaurant.status?.toLowerCase()}`}>
-                        {statusLabels[restaurant.status] || restaurant.status}
+                      <div className="placeholder">
+                        <Store size={32} />
+                      </div>
+                      <span className={`status-badge ${restaurant.isActive ? 'active' : 'inactive'}`}>
+                        {restaurant.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </div>
 
                     <div className="card-content">
                       <h3>{restaurant.name}</h3>
-                      <p className="cuisine">{restaurant.cuisine}</p>
-                      <p className="address">{restaurant.address}</p>
+                      {restaurant.description && (
+                        <p className="cuisine">{restaurant.description}</p>
+                      )}
+                      <p className="address">
+                        {restaurant.address}
+                        {restaurant.city ? `, ${restaurant.city}` : ''}
+                      </p>
 
                       <div className="card-meta">
-                        {restaurant.rating && (
+                        {restaurant.averageRating && (
                           <span className="rating">
                             <Star size={14} fill="currentColor" />
-                            {restaurant.rating}
+                            {Number(restaurant.averageRating).toFixed(1)}
                           </span>
                         )}
                         <span className="orders">
-                          {restaurant.totalOrders || 0} orders
+                          {restaurant.totalReviews || 0} reviews
                         </span>
                       </div>
 
@@ -205,29 +206,19 @@ const AdminRestaurants = () => {
                         >
                           <Eye size={16} />
                         </button>
-                        {restaurant.status === 'PENDING' && (
-                          <button
-                            className="approve"
-                            onClick={() => handleApprove(restaurant.id)}
-                            title="Approve"
-                          >
-                            <CheckCircle size={16} />
-                          </button>
-                        )}
-                        {restaurant.status === 'ACTIVE' && (
+                        {restaurant.isActive ? (
                           <button
                             className="suspend"
-                            onClick={() => handleSuspend(restaurant.id)}
-                            title="Suspend"
+                            onClick={() => handleDeactivate(restaurant.id)}
+                            title="Deactivate"
                           >
                             <XCircle size={16} />
                           </button>
-                        )}
-                        {restaurant.status === 'SUSPENDED' && (
+                        ) : (
                           <button
                             className="approve"
-                            onClick={() => handleApprove(restaurant.id)}
-                            title="Reactivate"
+                            onClick={() => handleActivate(restaurant.id)}
+                            title="Activate"
                           >
                             <CheckCircle size={16} />
                           </button>
