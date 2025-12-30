@@ -47,8 +47,14 @@ export const authApi = {
   getCurrentUser: () => api.get('/api/users/me'),
   updateProfile: (data) => api.put('/api/users/me', data),
   // Role upgrade endpoints
-  becomeCourier: (data) => api.post('/api/auth/become-courier', data),
-  becomeRestaurant: (data) => api.post('/api/auth/become-restaurant', data),
+  becomeCourier: (data) => {
+    const refreshToken = localStorage.getItem('refreshToken');
+    return api.post('/api/auth/become-courier', { ...data, refreshToken });
+  },
+  becomeRestaurant: (data) => {
+    const refreshToken = localStorage.getItem('refreshToken');
+    return api.post('/api/auth/become-restaurant', { ...data, refreshToken });
+  },
 };
 
 // Restaurant API
