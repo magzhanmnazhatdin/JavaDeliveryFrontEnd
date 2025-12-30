@@ -95,6 +95,78 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Check if user has a specific role
+  const hasRole = (role) => {
+    if (!user) return false;
+    // Support both single role and roles array
+    if (user.roles && Array.isArray(user.roles)) {
+      return user.roles.includes(role);
+    }
+    return user.role === role;
+  };
+
+  // Become a courier - adds COURIER role
+  const becomeCourier = async (data) => {
+    try {
+      const response = await authApi.becomeCourier(data);
+      const { accessToken, refreshToken, user: updatedUser } = response.data;
+
+      // Update tokens if new ones are provided
+      if (accessToken) {
+        localStorage.setItem('accessToken', accessToken);
+      }
+      if (refreshToken) {
+        localStorage.setItem('refreshToken', refreshToken);
+      }
+
+      // Update user with new roles
+      if (updatedUser) {
+        setUser(updatedUser);
+      } else {
+        // Refresh user data to get updated roles
+        await checkAuth();
+      }
+
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Failed to become courier',
+      };
+    }
+  };
+
+  // Become a restaurant owner - adds RESTAURANT role
+  const becomeRestaurant = async (data) => {
+    try {
+      const response = await authApi.becomeRestaurant(data);
+      const { accessToken, refreshToken, user: updatedUser } = response.data;
+
+      // Update tokens if new ones are provided
+      if (accessToken) {
+        localStorage.setItem('accessToken', accessToken);
+      }
+      if (refreshToken) {
+        localStorage.setItem('refreshToken', refreshToken);
+      }
+
+      // Update user with new roles
+      if (updatedUser) {
+        setUser(updatedUser);
+      } else {
+        // Refresh user data to get updated roles
+        await checkAuth();
+      }
+
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Failed to become restaurant owner',
+      };
+    }
+  };
+
   const value = {
     user,
     loading,
@@ -104,6 +176,9 @@ export const AuthProvider = ({ children }) => {
     logout,
     updateProfile,
     checkAuth,
+    hasRole,
+    becomeCourier,
+    becomeRestaurant,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

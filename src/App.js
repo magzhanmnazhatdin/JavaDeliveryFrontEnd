@@ -12,6 +12,8 @@ import CheckoutPage from './pages/CheckoutPage';
 import ProfilePage from './pages/ProfilePage';
 import OrdersPage from './pages/OrdersPage';
 import OrderTrackingPage from './pages/OrderTrackingPage';
+import BecomeCourierPage from './pages/BecomeCourierPage';
+import BecomeRestaurantPage from './pages/BecomeRestaurantPage';
 
 // Restaurant Panel
 import RestaurantDashboard from './pages/restaurant/RestaurantDashboard';
@@ -24,13 +26,6 @@ import CreateRestaurant from './pages/restaurant/CreateRestaurant';
 import CourierDashboard from './pages/courier/CourierDashboard';
 import CourierDeliveries from './pages/courier/CourierDeliveries';
 import CourierProfile from './pages/courier/CourierProfile';
-
-// Admin Panel
-import AdminDashboard from './pages/admin/AdminDashboard';
-import AdminUsers from './pages/admin/AdminUsers';
-import AdminRestaurants from './pages/admin/AdminRestaurants';
-import AdminOrders from './pages/admin/AdminOrders';
-import AdminCouriers from './pages/admin/AdminCouriers';
 
 // Styles
 import './styles/main.css';
@@ -51,6 +46,10 @@ function App() {
             <Route path="/orders" element={<OrdersPage />} />
             <Route path="/order/:id" element={<OrderTrackingPage />} />
 
+            {/* Become Pages */}
+            <Route path="/become-courier" element={<BecomeCourierPage />} />
+            <Route path="/become-restaurant" element={<BecomeRestaurantPage />} />
+
             {/* Restaurant Panel Routes */}
             <Route path="/restaurant-panel" element={<RestaurantDashboard />} />
             <Route path="/restaurant-panel/menu" element={<MenuManagement />} />
@@ -62,13 +61,6 @@ function App() {
             <Route path="/courier-panel" element={<CourierDashboard />} />
             <Route path="/courier-panel/deliveries" element={<CourierDeliveries />} />
             <Route path="/courier-panel/profile" element={<CourierProfile />} />
-
-            {/* Admin Panel Routes */}
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/admin/users" element={<AdminUsers />} />
-            <Route path="/admin/restaurants" element={<AdminRestaurants />} />
-            <Route path="/admin/orders" element={<AdminOrders />} />
-            <Route path="/admin/couriers" element={<AdminCouriers />} />
           </Routes>
         </Router>
       </CartProvider>

@@ -7,8 +7,6 @@ import {
   User,
   RefreshCw,
   MapPin,
-  Phone,
-  Clock,
   CheckCircle,
   Play,
 } from 'lucide-react';
@@ -17,7 +15,7 @@ import { courierApi } from '../../services/api';
 
 const statusConfig = {
   PENDING: { label: 'Waiting for courier', color: '#FFA000' },
-  ASSIGNED: { label: 'Assigned', color: '#1976D2' },
+  COURIER_ASSIGNED: { label: 'Assigned', color: '#1976D2' },
   PICKED_UP: { label: 'Picked Up', color: '#7B1FA2' },
   IN_TRANSIT: { label: 'In Transit', color: '#E64A19' },
   DELIVERED: { label: 'Delivered', color: '#388E3C' },
@@ -25,7 +23,7 @@ const statusConfig = {
 };
 
 const CourierDeliveries = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [tab, setTab] = useState('available');
   const [availableDeliveries, setAvailableDeliveries] = useState([]);
@@ -49,12 +47,15 @@ const CourierDeliveries = () => {
   }, []);
 
   useEffect(() => {
+    if (authLoading) {
+      return;
+    }
     if (!isAuthenticated) {
       navigate('/login');
       return;
     }
     loadDeliveries();
-  }, [isAuthenticated, navigate, loadDeliveries]);
+  }, [authLoading, isAuthenticated, navigate, loadDeliveries]);
 
   const handleAccept = async (deliveryId) => {
     try {
@@ -78,8 +79,10 @@ const CourierDeliveries = () => {
 
   const handleComplete = async (deliveryId) => {
     try {
-      await courierApi.completeDelivery(deliveryId);
-      loadDeliveries();
+      await courierApi.updateDeliveryStatus(deliveryId, 'DELIVERED');
+      setMyDeliveries((prev) =>
+        prev.map((d) => (d.id === deliveryId ? { ...d, status: 'DELIVERED' } : d))
+      );
     } catch (err) {
       console.error('Failed to complete delivery:', err);
     }
@@ -92,7 +95,7 @@ const CourierDeliveries = () => {
     (d) => d.status === 'DELIVERED'
   );
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="panel-loading">
         <div className="loading-spinner"></div>
@@ -172,25 +175,23 @@ const CourierDeliveries = () => {
                     <div key={delivery.id} className="delivery-card available">
                       <div className="delivery-header">
                         <h3>Order #{delivery.orderId}</h3>
-                        <span className="amount">${delivery.amount}</span>
+                        <span className="amount">Delivery</span>
                       </div>
 
                       <div className="delivery-restaurant">
-                        <strong>{delivery.restaurantName}</strong>
-                        <p>
-                          <MapPin size={14} />
-                          {delivery.restaurantAddress}
-                        </p>
+                        <strong>Restaurant {delivery.restaurantId}</strong>
+                        {delivery.pickupAddress && (
+                          <p>
+                            <MapPin size={14} />
+                            {delivery.pickupAddress}
+                          </p>
+                        )}
                       </div>
 
                       <div className="delivery-customer">
                         <p>
                           <MapPin size={14} />
                           {delivery.deliveryAddress}
-                        </p>
-                        <p>
-                          <Clock size={14} />
-                          ~{delivery.estimatedTime} min
                         </p>
                       </div>
 
@@ -232,40 +233,30 @@ const CourierDeliveries = () => {
                         </div>
 
                         <div className="delivery-restaurant">
-                          <strong>{delivery.restaurantName}</strong>
-                          <p>
-                            <MapPin size={14} />
-                            {delivery.restaurantAddress}
-                          </p>
-                          {delivery.restaurantPhone && (
-                            <a href={`tel:${delivery.restaurantPhone}`} className="phone-link">
-                              <Phone size={14} />
-                              {delivery.restaurantPhone}
-                            </a>
+                          <strong>Restaurant {delivery.restaurantId}</strong>
+                          {delivery.pickupAddress && (
+                            <p>
+                              <MapPin size={14} />
+                              {delivery.pickupAddress}
+                            </p>
                           )}
                         </div>
 
                         <div className="delivery-customer">
-                          <strong>Customer: {delivery.customerName}</strong>
+                          <strong>Customer</strong>
                           <p>
                             <MapPin size={14} />
                             {delivery.deliveryAddress}
                           </p>
-                          {delivery.customerPhone && (
-                            <a href={`tel:${delivery.customerPhone}`} className="phone-link">
-                              <Phone size={14} />
-                              {delivery.customerPhone}
-                            </a>
-                          )}
                         </div>
 
                         <div className="delivery-amount">
                           <span>Order Amount:</span>
-                          <strong>${delivery.amount}</strong>
+                          <strong>—</strong>
                         </div>
 
                         <div className="delivery-actions">
-                          {delivery.status === 'ASSIGNED' && (
+                          {delivery.status === 'COURIER_ASSIGNED' && (
                             <button
                               className="btn-primary"
                               onClick={() => handleStatusUpdate(delivery.id, 'PICKED_UP')}
@@ -314,13 +305,17 @@ const CourierDeliveries = () => {
                     <div key={delivery.id} className="delivery-row">
                       <div className="delivery-row-info">
                         <span className="order-id">#{delivery.orderId}</span>
-                        <span className="restaurant">{delivery.restaurantName}</span>
+                        <span className="restaurant">
+                          Restaurant {delivery.restaurantId}
+                        </span>
                         <span className="address">{delivery.deliveryAddress}</span>
                       </div>
                       <div className="delivery-row-meta">
-                        <span className="amount">${delivery.amount}</span>
+                        <span className="amount">—</span>
                         <span className="date">
-                          {new Date(delivery.completedAt).toLocaleDateString('en-US')}
+                          {delivery.deliveredAt
+                            ? new Date(delivery.deliveredAt).toLocaleDateString('en-US')
+                            : '—'}
                         </span>
                       </div>
                     </div>

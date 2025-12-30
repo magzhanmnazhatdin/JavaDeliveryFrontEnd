@@ -15,16 +15,23 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { restaurantOwnerApi } from '../../services/api';
+import { restaurantOrdersApi, restaurantOwnerApi } from '../../services/api';
 
 const statusConfig = {
-  PENDING: { label: 'Pending', color: '#FFA000', next: 'CONFIRMED' },
-  CONFIRMED: { label: 'Confirmed', color: '#1976D2', next: 'PREPARING' },
-  PREPARING: { label: 'Preparing', color: '#7B1FA2', next: 'READY' },
-  READY: { label: 'Ready', color: '#00796B', next: null },
-  DELIVERING: { label: 'Delivering', color: '#E64A19', next: null },
-  DELIVERED: { label: 'Delivered', color: '#388E3C', next: null },
-  CANCELLED: { label: 'Cancelled', color: '#D32F2F', next: null },
+  PENDING: { label: 'Pending', color: '#FFA000', action: 'accept', rejectable: true },
+  ACCEPTED: { label: 'Accepted', color: '#0288D1', action: 'startPreparing' },
+  PREPARING: { label: 'Preparing', color: '#7B1FA2', action: 'markReady' },
+  READY: { label: 'Ready for Pickup', color: '#00796B', action: 'markPickedUp' },
+  PICKED_UP: { label: 'Picked Up', color: '#5D4037' },
+  CANCELLED: { label: 'Cancelled', color: '#D32F2F' },
+  REJECTED: { label: 'Rejected', color: '#C62828' },
+};
+
+const actionConfig = {
+  accept: { label: 'Accept', icon: CheckCircle },
+  startPreparing: { label: 'Start Preparing', icon: Clock },
+  markReady: { label: 'Mark Ready', icon: Package },
+  markPickedUp: { label: 'Picked Up', icon: Package },
 };
 
 const RestaurantOrders = () => {
@@ -32,6 +39,7 @@ const RestaurantOrders = () => {
   const navigate = useNavigate();
   const [restaurant, setRestaurant] = useState(null);
   const [orders, setOrders] = useState([]);
+  const [orderDetails, setOrderDetails] = useState({});
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('active');
   const [expandedOrder, setExpandedOrder] = useState(null);
@@ -43,18 +51,17 @@ const RestaurantOrders = () => {
       setRestaurant(restaurantRes.data);
 
       if (restaurantRes.data?.id) {
-        const ordersRes = await restaurantOwnerApi.getRestaurantOrders(
-          restaurantRes.data.id,
-          { status: filter === 'all' ? undefined : filter }
+        const ordersRes = await restaurantOrdersApi.getByRestaurant(
+          restaurantRes.data.id
         );
-        setOrders(ordersRes.data.content || ordersRes.data || []);
+        setOrders(ordersRes.data || []);
       }
     } catch (err) {
       console.error('Failed to load orders:', err);
     } finally {
       setLoading(false);
     }
-  }, [filter]);
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -66,18 +73,51 @@ const RestaurantOrders = () => {
 
   const filteredOrders = orders.filter((order) => {
     if (filter === 'all') return true;
-    if (filter === 'active') return !['DELIVERED', 'CANCELLED'].includes(order.status);
-    if (filter === 'completed') return order.status === 'DELIVERED';
-    if (filter === 'cancelled') return order.status === 'CANCELLED';
+    if (filter === 'active')
+      return !['PICKED_UP', 'CANCELLED', 'REJECTED'].includes(order.status);
+    if (filter === 'completed') return order.status === 'PICKED_UP';
+    if (filter === 'cancelled') return ['CANCELLED', 'REJECTED'].includes(order.status);
     return true;
   });
 
-  const handleStatusUpdate = async (orderId, newStatus) => {
+  const handleStatusUpdate = async (orderId, action) => {
     try {
-      await restaurantOwnerApi.updateOrderStatus(orderId, newStatus);
-      setOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
-      );
+      let updatedStatus = null;
+      switch (action) {
+        case 'accept':
+          await restaurantOrdersApi.accept(orderId);
+          updatedStatus = 'ACCEPTED';
+          break;
+        case 'startPreparing':
+          await restaurantOrdersApi.startPreparing(orderId);
+          updatedStatus = 'PREPARING';
+          break;
+        case 'markReady':
+          await restaurantOrdersApi.markReady(orderId);
+          updatedStatus = 'READY';
+          break;
+        case 'markPickedUp':
+          await restaurantOrdersApi.markPickedUp(orderId);
+          updatedStatus = 'PICKED_UP';
+          break;
+        case 'reject':
+          await restaurantOrdersApi.reject(orderId, { reason: 'Rejected by restaurant' });
+          updatedStatus = 'REJECTED';
+          break;
+        default:
+          return;
+      }
+
+      if (updatedStatus) {
+        setOrders((prev) =>
+          prev.map((o) => (o.id === orderId ? { ...o, status: updatedStatus } : o))
+        );
+        setOrderDetails((prev) =>
+          prev[orderId]
+            ? { ...prev, [orderId]: { ...prev[orderId], status: updatedStatus } }
+            : prev
+        );
+      }
     } catch (err) {
       console.error('Failed to update order status:', err);
     }
@@ -186,15 +226,33 @@ const RestaurantOrders = () => {
             filteredOrders.map((order) => {
               const status = statusConfig[order.status] || statusConfig.PENDING;
               const isExpanded = expandedOrder === order.id;
+              const details = orderDetails[order.id];
+              const displayId = order.orderId || order.id;
+              const action = status.action;
+              const actionMeta = actionConfig[action];
+              const ActionIcon = actionMeta?.icon;
 
               return (
                 <div key={order.id} className="order-card-panel">
                   <div
                     className="order-header"
-                    onClick={() => setExpandedOrder(isExpanded ? null : order.id)}
+                    onClick={async () => {
+                      if (!isExpanded && !orderDetails[order.id]) {
+                        try {
+                          const detailRes = await restaurantOrdersApi.getById(order.id);
+                          setOrderDetails((prev) => ({
+                            ...prev,
+                            [order.id]: detailRes.data,
+                          }));
+                        } catch (err) {
+                          console.error('Failed to load order details:', err);
+                        }
+                      }
+                      setExpandedOrder(isExpanded ? null : order.id);
+                    }}
                   >
                     <div className="order-info">
-                      <span className="order-id">#{order.id}</span>
+                      <span className="order-id">#{displayId}</span>
                       <span className="order-time">{formatDate(order.createdAt)}</span>
                     </div>
                     <div
@@ -203,7 +261,9 @@ const RestaurantOrders = () => {
                     >
                       {status.label}
                     </div>
-                    <div className="order-total">${order.totalAmount}</div>
+                    <div className="order-total">
+                      ${Number(order.totalPrice || 0).toFixed(2)}
+                    </div>
                     {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                   </div>
 
@@ -211,65 +271,59 @@ const RestaurantOrders = () => {
                     <div className="order-details">
                       <div className="order-customer">
                         <h4>Customer</h4>
-                        <p>{order.customerName || 'Not specified'}</p>
-                        <p>{order.customerPhone || 'No phone'}</p>
+                        <p>Customer</p>
+                        <p>No phone</p>
                       </div>
 
                       <div className="order-address">
                         <h4>Delivery Address</h4>
-                        <p>{order.deliveryAddress || 'Pickup'}</p>
+                        <p>{details?.deliveryAddress || order.deliveryAddress || 'Pickup'}</p>
                       </div>
 
                       <div className="order-items-list">
                         <h4>Order Items</h4>
-                        {order.items?.map((item, idx) => (
-                          <div key={idx} className="order-item-row">
-                            <span>{item.quantity}x {item.name}</span>
-                            <span>${item.price * item.quantity}</span>
-                          </div>
-                        ))}
+                        {(details?.items || order.items)?.length ? (
+                          (details?.items || order.items).map((item, idx) => {
+                            const itemName = item.nameSnapshot || item.name || 'Item';
+                            const itemPrice = Number(item.priceSnapshot ?? item.price ?? 0);
+                            return (
+                            <div key={idx} className="order-item-row">
+                              <span>
+                                {item.quantity}x {itemName}
+                              </span>
+                              <span>${(itemPrice * item.quantity).toFixed(2)}</span>
+                            </div>
+                            );
+                          })
+                        ) : (
+                          <p>No item details</p>
+                        )}
                       </div>
 
-                      {order.comment && (
+                      {details?.customerNotes && (
                         <div className="order-comment">
                           <h4>Note</h4>
-                          <p>{order.comment}</p>
+                          <p>{details.customerNotes}</p>
                         </div>
                       )}
 
                       <div className="order-actions">
-                        {status.next && (
+                        {actionMeta && (
                           <button
                             className="btn-primary"
-                            onClick={() => handleStatusUpdate(order.id, status.next)}
+                            onClick={() => handleStatusUpdate(order.id, action)}
                           >
-                            {status.next === 'CONFIRMED' && (
-                              <>
-                                <CheckCircle size={18} />
-                                Confirm
-                              </>
-                            )}
-                            {status.next === 'PREPARING' && (
-                              <>
-                                <Clock size={18} />
-                                Start Preparing
-                              </>
-                            )}
-                            {status.next === 'READY' && (
-                              <>
-                                <Package size={18} />
-                                Mark Ready
-                              </>
-                            )}
+                            <ActionIcon size={18} />
+                            {actionMeta.label}
                           </button>
                         )}
-                        {order.status === 'PENDING' && (
+                        {status.rejectable && (
                           <button
                             className="btn-danger"
-                            onClick={() => handleStatusUpdate(order.id, 'CANCELLED')}
+                            onClick={() => handleStatusUpdate(order.id, 'reject')}
                           >
                             <XCircle size={18} />
-                            Cancel
+                            Reject
                           </button>
                         )}
                       </div>

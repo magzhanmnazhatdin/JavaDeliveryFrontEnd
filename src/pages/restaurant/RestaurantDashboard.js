@@ -7,8 +7,6 @@ import {
   BarChart3,
   Settings,
   Plus,
-  TrendingUp,
-  TrendingDown,
   Clock,
   CheckCircle,
   Package,
@@ -31,12 +29,41 @@ const RestaurantDashboard = () => {
       setRestaurant(restaurantRes.data);
 
       if (restaurantRes.data?.id) {
-        const [statsRes, ordersRes] = await Promise.all([
-          restaurantOwnerApi.getStatistics(restaurantRes.data.id, { period: 'today' }),
-          restaurantOwnerApi.getRestaurantOrders(restaurantRes.data.id, { limit: 5 }),
-        ]);
-        setStats(statsRes.data);
-        setRecentOrders(ordersRes.data.content || ordersRes.data || []);
+        const ordersRes = await restaurantOwnerApi.getRestaurantOrders(
+          restaurantRes.data.id,
+          { size: 50, sort: 'createdAt,desc' }
+        );
+        const orders = ordersRes.data.content || ordersRes.data || [];
+        setRecentOrders(orders.slice(0, 5));
+
+        const today = new Date();
+        const isToday = (value) => {
+          const date = new Date(value);
+          return (
+            date.getFullYear() === today.getFullYear() &&
+            date.getMonth() === today.getMonth() &&
+            date.getDate() === today.getDate()
+          );
+        };
+
+        const ordersToday = orders.filter((order) => isToday(order.createdAt));
+        const revenueToday = ordersToday.reduce(
+          (sum, order) => sum + Number(order.totalPrice || 0),
+          0
+        );
+        const pendingOrders = orders.filter((order) =>
+          ['PENDING', 'CONFIRMED', 'ACCEPTED_BY_RESTAURANT', 'PREPARING'].includes(order.status)
+        ).length;
+        const completedToday = ordersToday.filter(
+          (order) => order.status === 'DELIVERED'
+        ).length;
+
+        setStats({
+          ordersToday: ordersToday.length,
+          revenueToday,
+          pendingOrders,
+          completedToday,
+        });
       }
     } catch (err) {
       console.error('Failed to load dashboard:', err);
@@ -59,11 +86,14 @@ const RestaurantDashboard = () => {
   const statusLabels = {
     PENDING: 'Pending',
     CONFIRMED: 'Confirmed',
+    ACCEPTED_BY_RESTAURANT: 'Accepted',
     PREPARING: 'Preparing',
-    READY: 'Ready',
-    DELIVERING: 'Delivering',
+    READY_FOR_PICKUP: 'Ready for Pickup',
+    PICKED_UP: 'Picked Up',
+    IN_DELIVERY: 'In Delivery',
     DELIVERED: 'Delivered',
     CANCELLED: 'Cancelled',
+    REJECTED: 'Rejected',
   };
 
   if (loading) {
@@ -150,17 +180,6 @@ const RestaurantDashboard = () => {
               <span className="stat-value">{stats?.ordersToday || 0}</span>
               <span className="stat-label">Orders Today</span>
             </div>
-            {stats?.ordersChange > 0 ? (
-              <span className="stat-change positive">
-                <TrendingUp size={14} />
-                +{stats.ordersChange}%
-              </span>
-            ) : stats?.ordersChange < 0 ? (
-              <span className="stat-change negative">
-                <TrendingDown size={14} />
-                {stats.ordersChange}%
-              </span>
-            ) : null}
           </div>
 
           <div className="stat-card">
@@ -222,8 +241,8 @@ const RestaurantDashboard = () => {
                   {recentOrders.map((order) => (
                     <tr key={order.id}>
                       <td>#{order.id}</td>
-                      <td>{order.customerName || 'Customer'}</td>
-                      <td>${order.totalAmount}</td>
+                      <td>Customer</td>
+                      <td>${Number(order.totalPrice || 0).toFixed(2)}</td>
                       <td>
                         <span className={`status-badge ${order.status.toLowerCase()}`}>
                           {statusLabels[order.status] || order.status}

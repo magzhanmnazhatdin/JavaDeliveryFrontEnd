@@ -16,57 +16,113 @@ import { useAuth } from '../../context/AuthContext';
 import { courierApi } from '../../services/api';
 
 const CourierDashboard = () => {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
-  const [stats, setStats] = useState(null);
   const [activeDeliveries, setActiveDeliveries] = useState([]);
+  const [stats, setStats] = useState({ total: 0, today: 0 });
   const [loading, setLoading] = useState(true);
 
   const loadDashboard = useCallback(async () => {
     try {
       setLoading(true);
-      const [profileRes, statsRes, deliveriesRes] = await Promise.all([
+      const [profileRes, deliveriesRes] = await Promise.all([
         courierApi.getCourierProfile(),
-        courierApi.getCourierStats(),
         courierApi.getMyDeliveriesAsCourier(),
       ]);
       setProfile(profileRes.data);
-      setStats(statsRes.data);
+      const deliveries = deliveriesRes.data || [];
       setActiveDeliveries(
-        (deliveriesRes.data || []).filter(
-          (d) => !['DELIVERED', 'CANCELLED'].includes(d.status)
-        )
+        deliveries.filter((d) => !['DELIVERED', 'CANCELLED'].includes(d.status))
       );
+
+      const today = new Date();
+      const isToday = (value) => {
+        const date = new Date(value);
+        return (
+          date.getFullYear() === today.getFullYear() &&
+          date.getMonth() === today.getMonth() &&
+          date.getDate() === today.getDate()
+        );
+      };
+      const deliveredToday = deliveries.filter(
+        (d) => d.status === 'DELIVERED' && d.deliveredAt && isToday(d.deliveredAt)
+      );
+      setStats({ total: deliveries.length, today: deliveredToday.length });
     } catch (err) {
-      console.error('Failed to load dashboard:', err);
+      if (err.response?.status === 404) {
+        setProfile(null);
+        setActiveDeliveries([]);
+        setStats({ total: 0, today: 0 });
+      } else {
+        console.error('Failed to load dashboard:', err);
+      }
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    if (authLoading) {
+      return;
+    }
     if (!isAuthenticated) {
       navigate('/login');
       return;
     }
     loadDashboard();
-  }, [isAuthenticated, navigate, loadDashboard]);
+  }, [authLoading, isAuthenticated, navigate, loadDashboard]);
 
   const toggleAvailability = async () => {
     try {
       await courierApi.toggleAvailability();
-      setProfile((prev) => ({ ...prev, available: !prev?.available }));
+      setProfile((prev) => {
+        if (!prev) return prev;
+        const nextStatus = prev.status === 'AVAILABLE' ? 'OFFLINE' : 'AVAILABLE';
+        return { ...prev, status: nextStatus };
+      });
     } catch (err) {
       console.error('Failed to toggle availability:', err);
     }
   };
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="panel-loading">
         <div className="loading-spinner"></div>
         <p>Loading...</p>
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="panel-page courier-panel">
+        <div className="panel-sidebar">
+          <div className="panel-logo">
+            <span>Courier</span>
+          </div>
+          <nav className="panel-nav">
+            <Link to="/courier-panel/profile" className="nav-item active">
+              <User size={20} />
+              Profile
+            </Link>
+            <div className="nav-divider"></div>
+            <Link to="/" className="nav-item">
+              <Home size={20} />
+              Home
+            </Link>
+          </nav>
+        </div>
+        <div className="panel-content">
+          <div className="empty-state">
+            <Package size={48} />
+            <p>Create your courier profile to start delivering</p>
+            <Link to="/courier-panel/profile" className="btn-primary">
+              Create Profile
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
@@ -105,10 +161,10 @@ const CourierDashboard = () => {
             <p>Hello, {user?.firstName || 'courier'}!</p>
           </div>
           <button
-            className={`availability-toggle ${profile?.available ? 'available' : ''}`}
+            className={`availability-toggle ${profile?.status === 'AVAILABLE' ? 'available' : ''}`}
             onClick={toggleAvailability}
           >
-            {profile?.available ? (
+            {profile?.status === 'AVAILABLE' ? (
               <>
                 <ToggleRight size={24} />
                 Online
@@ -128,7 +184,7 @@ const CourierDashboard = () => {
               <CheckCircle size={24} />
             </div>
             <div className="stat-info">
-              <span className="stat-value">{stats?.deliveriesToday || 0}</span>
+              <span className="stat-value">{stats?.today || 0}</span>
               <span className="stat-label">Deliveries Today</span>
             </div>
           </div>
@@ -138,8 +194,8 @@ const CourierDashboard = () => {
               <TrendingUp size={24} />
             </div>
             <div className="stat-info">
-              <span className="stat-value">${stats?.earningsToday || 0}</span>
-              <span className="stat-label">Earned Today</span>
+              <span className="stat-value">{profile?.status || '—'}</span>
+              <span className="stat-label">Status</span>
             </div>
           </div>
 
@@ -158,7 +214,7 @@ const CourierDashboard = () => {
               <Package size={24} />
             </div>
             <div className="stat-info">
-              <span className="stat-value">{stats?.totalDeliveries || 0}</span>
+              <span className="stat-value">{stats?.total || 0}</span>
               <span className="stat-label">Total Deliveries</span>
             </div>
           </div>
@@ -184,13 +240,13 @@ const CourierDashboard = () => {
             <div className="deliveries-list">
               {activeDeliveries.slice(0, 3).map((delivery) => (
                 <Link
-                  to={`/courier-panel/delivery/${delivery.id}`}
+                  to="/courier-panel/deliveries"
                   key={delivery.id}
                   className="delivery-card"
                 >
                   <div className="delivery-info">
                     <h3>Order #{delivery.orderId}</h3>
-                    <p className="restaurant">{delivery.restaurantName}</p>
+                    <p className="restaurant">Restaurant {delivery.restaurantId}</p>
                   </div>
                   <div className="delivery-address">
                     <MapPin size={16} />
@@ -198,11 +254,11 @@ const CourierDashboard = () => {
                   </div>
                   <div className="delivery-meta">
                     <span className={`status ${delivery.status.toLowerCase()}`}>
-                      {delivery.status === 'ASSIGNED' && 'Assigned'}
+                      {delivery.status === 'COURIER_ASSIGNED' && 'Assigned'}
                       {delivery.status === 'PICKED_UP' && 'Picked Up'}
                       {delivery.status === 'IN_TRANSIT' && 'In Transit'}
                     </span>
-                    <span className="amount">${delivery.amount}</span>
+                    <span className="amount">Delivery</span>
                   </div>
                 </Link>
               ))}

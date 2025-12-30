@@ -4,7 +4,6 @@ import {
   Search,
   ShoppingBag,
   MapPin,
-  Clock,
   Star,
   ChevronRight,
   X,
@@ -13,6 +12,8 @@ import {
   Heart,
   User,
   Utensils,
+  Truck,
+  Store,
 } from 'lucide-react';
 import { restaurantApi, favoritesApi } from '../services/api';
 import { useCart } from '../context/CartContext';
@@ -26,17 +27,12 @@ const HomePage = () => {
   const [favorites, setFavorites] = useState(new Set());
 
   const { cart, isCartOpen, setIsCartOpen, updateQuantity, totalPrice, totalItems } = useCart();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, hasRole } = useAuth();
   const navigate = useNavigate();
 
   const categories = [
-    { id: 'all', name: 'All', icon: '🍽️' },
-    { id: 'burgers', name: 'Burgers', icon: '🍔' },
-    { id: 'pizza', name: 'Pizza', icon: '🍕' },
-    { id: 'sushi', name: 'Sushi', icon: '🍣' },
-    { id: 'asian', name: 'Asian', icon: '🍜' },
-    { id: 'desserts', name: 'Desserts', icon: '🍰' },
-    { id: 'drinks', name: 'Drinks', icon: '🥤' },
+    'All',
+    ...new Set(restaurants.map((restaurant) => restaurant.city).filter(Boolean)),
   ];
 
   const loadRestaurants = useCallback(async () => {
@@ -91,11 +87,14 @@ const HomePage = () => {
     }
   };
 
-  const filteredRestaurants = restaurants.filter((r) => {
-    const matchesCategory = selectedCategory === 'All' || r.cuisine === selectedCategory;
+  const filteredRestaurants = restaurants.filter((restaurant) => {
+    const matchesCategory =
+      selectedCategory === 'All' || restaurant.city === selectedCategory;
+    const search = searchQuery.toLowerCase();
     const matchesSearch =
-      r.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.cuisine?.toLowerCase().includes(searchQuery.toLowerCase());
+      restaurant.name?.toLowerCase().includes(search) ||
+      restaurant.city?.toLowerCase().includes(search) ||
+      restaurant.description?.toLowerCase().includes(search);
     return matchesCategory && matchesSearch;
   });
 
@@ -155,18 +154,47 @@ const HomePage = () => {
       <section className="hero">
         <h1>Food Delivery</h1>
         <p>Best restaurants in your city</p>
+
+        {/* Partner/Courier Buttons */}
+        {isAuthenticated && (
+          <div className="hero-actions">
+            {!hasRole('COURIER') && (
+              <Link to="/become-courier" className="hero-btn courier-btn">
+                <Truck size={20} />
+                Become a Courier
+              </Link>
+            )}
+            {!hasRole('RESTAURANT_OWNER') && (
+              <Link to="/become-restaurant" className="hero-btn restaurant-btn">
+                <Store size={20} />
+                Open Restaurant
+              </Link>
+            )}
+            {hasRole('COURIER') && (
+              <Link to="/courier-panel" className="hero-btn courier-btn">
+                <Truck size={20} />
+                Courier Panel
+              </Link>
+            )}
+            {hasRole('RESTAURANT_OWNER') && (
+              <Link to="/restaurant-panel" className="hero-btn restaurant-btn">
+                <Store size={20} />
+                Restaurant Panel
+              </Link>
+            )}
+          </div>
+        )}
       </section>
 
       {/* Categories */}
       <div className="categories">
         {categories.map((category) => (
           <button
-            key={category.id}
-            className={`category-chip ${selectedCategory === category.name ? 'active' : ''}`}
-            onClick={() => setSelectedCategory(category.name)}
+            key={category}
+            className={`category-chip ${selectedCategory === category ? 'active' : ''}`}
+            onClick={() => setSelectedCategory(category)}
           >
-            <span className="category-icon">{category.icon}</span>
-            <span className="category-name">{category.name}</span>
+            <span className="category-name">{category}</span>
           </button>
         ))}
       </div>
@@ -192,8 +220,11 @@ const HomePage = () => {
                 className="restaurant-card"
               >
                 <div className="card-image">
-                  {restaurant.image ? (
-                    <img src={restaurant.image} alt={restaurant.name} />
+                  {restaurant.imageUrl || restaurant.image ? (
+                    <img
+                      src={restaurant.imageUrl || restaurant.image}
+                      alt={restaurant.name}
+                    />
                   ) : (
                     <div className="placeholder-image">
                       <Utensils size={32} strokeWidth={1} />
@@ -212,19 +243,13 @@ const HomePage = () => {
 
                 <div className="card-content">
                   <h3>{restaurant.name}</h3>
-                  <p className="cuisine">{restaurant.cuisine}</p>
+                  <p className="cuisine">{restaurant.city || restaurant.address}</p>
 
                   <div className="card-meta">
-                    {restaurant.rating && (
+                    {restaurant.averageRating != null && (
                       <span className="rating">
                         <Star size={12} fill="currentColor" />
-                        {restaurant.rating}
-                      </span>
-                    )}
-                    {restaurant.deliveryTime && (
-                      <span className="time">
-                        <Clock size={12} />
-                        {restaurant.deliveryTime} min
+                        {Number(restaurant.averageRating).toFixed(1)}
                       </span>
                     )}
                   </div>

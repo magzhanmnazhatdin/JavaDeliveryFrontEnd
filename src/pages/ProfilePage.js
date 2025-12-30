@@ -6,7 +6,6 @@ import {
   Mail,
   Phone,
   MapPin,
-  Heart,
   Settings,
   LogOut,
   ChevronRight,
@@ -55,6 +54,20 @@ const ProfilePage = () => {
     }
     loadAddresses();
   }, [isAuthenticated, user, navigate, loadAddresses]);
+
+  const formatAddress = (address) => {
+    if (!address) return '';
+    if (address.fullAddress) return address.fullAddress;
+    const parts = [
+      address.streetAddress,
+      address.apartment ? `Apt ${address.apartment}` : null,
+      address.city,
+      address.state,
+      address.postalCode,
+      address.country,
+    ].filter(Boolean);
+    return parts.join(', ');
+  };
 
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
@@ -140,11 +153,6 @@ const ProfilePage = () => {
             <Link to="/orders">
               <Settings size={20} />
               Order History
-              <ChevronRight size={16} />
-            </Link>
-            <Link to="/favorites">
-              <Heart size={20} />
-              Favorites
               <ChevronRight size={16} />
             </Link>
             <button className="logout-btn" onClick={handleLogout}>
@@ -256,12 +264,10 @@ const ProfilePage = () => {
                     <div key={addr.id} className="address-card">
                       <div className="address-info">
                         <p className="address-main">
-                          {addr.street}, {addr.building}
-                          {addr.apartment && `, Apt. ${addr.apartment}`}
+                          {addr.label || 'Delivery Address'}
                         </p>
                         <p className="address-details">
-                          {addr.entrance && `Entrance ${addr.entrance}`}
-                          {addr.floor && `, Floor ${addr.floor}`}
+                          {formatAddress(addr)}
                         </p>
                         {addr.isDefault && (
                           <span className="default-badge">Default</span>

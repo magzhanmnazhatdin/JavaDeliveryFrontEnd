@@ -24,12 +24,13 @@ const RestaurantSettings = () => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    cuisine: '',
     address: '',
+    city: '',
     phone: '',
-    deliveryTime: '',
-    minOrder: '',
-    active: true,
+    email: '',
+    openingTime: '',
+    closingTime: '',
+    isActive: true,
   });
 
   const loadRestaurant = useCallback(async () => {
@@ -40,12 +41,13 @@ const RestaurantSettings = () => {
       setFormData({
         name: response.data.name || '',
         description: response.data.description || '',
-        cuisine: response.data.cuisine || '',
         address: response.data.address || '',
+        city: response.data.city || '',
         phone: response.data.phone || '',
-        deliveryTime: response.data.deliveryTime || '',
-        minOrder: response.data.minOrder || '',
-        active: response.data.active ?? true,
+        email: response.data.email || '',
+        openingTime: response.data.openingTime || '',
+        closingTime: response.data.closingTime || '',
+        isActive: response.data.isActive ?? true,
       });
     } catch (err) {
       console.error('Failed to load restaurant:', err);
@@ -68,13 +70,7 @@ const RestaurantSettings = () => {
     setMessage(null);
 
     try {
-      const data = {
-        ...formData,
-        deliveryTime: parseInt(formData.deliveryTime) || 30,
-        minOrder: parseFloat(formData.minOrder) || 0,
-      };
-
-      await restaurantOwnerApi.updateRestaurant(restaurant.id, data);
+      await restaurantOwnerApi.updateRestaurant(restaurant.id, formData);
       setMessage({ type: 'success', text: 'Settings saved' });
     } catch (err) {
       setMessage({ type: 'error', text: 'Failed to save settings' });
@@ -163,15 +159,6 @@ const RestaurantSettings = () => {
               />
             </div>
 
-            <div className="form-group">
-              <label>Cuisine Type</label>
-              <input
-                type="text"
-                value={formData.cuisine}
-                onChange={(e) => setFormData({ ...formData, cuisine: e.target.value })}
-                placeholder="e.g. Italian, Japanese, Fast Food"
-              />
-            </div>
           </div>
 
           <div className="form-section">
@@ -191,6 +178,16 @@ const RestaurantSettings = () => {
             </div>
 
             <div className="form-group">
+              <label>City</label>
+              <input
+                type="text"
+                value={formData.city}
+                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                placeholder="City"
+              />
+            </div>
+
+            <div className="form-group">
               <label>
                 <Phone size={16} />
                 Phone
@@ -202,33 +199,40 @@ const RestaurantSettings = () => {
                 placeholder="+1 (555) 123-4567"
               />
             </div>
+
+            <div className="form-group">
+              <label>Email</label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="contact@example.com"
+              />
+            </div>
           </div>
 
           <div className="form-section">
-            <h3>Delivery Settings</h3>
+            <h3>Working Hours</h3>
 
             <div className="form-row">
               <div className="form-group">
                 <label>
                   <Clock size={16} />
-                  Delivery Time (min)
+                  Opening Time
                 </label>
                 <input
-                  type="number"
-                  value={formData.deliveryTime}
-                  onChange={(e) => setFormData({ ...formData, deliveryTime: e.target.value })}
-                  min="10"
-                  max="180"
+                  type="time"
+                  value={formData.openingTime}
+                  onChange={(e) => setFormData({ ...formData, openingTime: e.target.value })}
                 />
               </div>
 
               <div className="form-group">
-                <label>Minimum Order ($)</label>
+                <label>Closing Time</label>
                 <input
-                  type="number"
-                  value={formData.minOrder}
-                  onChange={(e) => setFormData({ ...formData, minOrder: e.target.value })}
-                  min="0"
+                  type="time"
+                  value={formData.closingTime}
+                  onChange={(e) => setFormData({ ...formData, closingTime: e.target.value })}
                 />
               </div>
             </div>
@@ -241,8 +245,8 @@ const RestaurantSettings = () => {
               <label>
                 <input
                   type="checkbox"
-                  checked={formData.active}
-                  onChange={(e) => setFormData({ ...formData, active: e.target.checked })}
+                  checked={formData.isActive}
+                  onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
                 />
                 Restaurant is active and accepting orders
               </label>

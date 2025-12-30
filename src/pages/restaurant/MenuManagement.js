@@ -32,8 +32,8 @@ const MenuManagement = () => {
     description: '',
     price: '',
     category: '',
-    image: '',
-    available: true,
+    imageUrl: '',
+    isAvailable: true,
   });
 
   const loadMenu = useCallback(async () => {
@@ -77,8 +77,8 @@ const MenuManagement = () => {
       description: '',
       price: '',
       category: '',
-      image: '',
-      available: true,
+      imageUrl: '',
+      isAvailable: true,
     });
     setShowModal(true);
   };
@@ -90,8 +90,8 @@ const MenuManagement = () => {
       description: item.description || '',
       price: item.price,
       category: item.category || '',
-      image: item.image || '',
-      available: item.available,
+      imageUrl: item.imageUrl || '',
+      isAvailable: item.isAvailable,
     });
     setShowModal(true);
   };
@@ -129,10 +129,10 @@ const MenuManagement = () => {
 
   const handleToggleAvailability = async (item) => {
     try {
-      await restaurantOwnerApi.toggleMenuItemAvailability(item.id);
+      await restaurantOwnerApi.toggleMenuItemAvailability(item.id, !item.isAvailable);
       setMenuItems((prev) =>
         prev.map((i) =>
-          i.id === item.id ? { ...i, available: !i.available } : i
+          i.id === item.id ? { ...i, isAvailable: !i.isAvailable } : i
         )
       );
     } catch (err) {
@@ -217,16 +217,16 @@ const MenuManagement = () => {
             </div>
           ) : (
             filteredItems.map((item) => (
-              <div key={item.id} className={`menu-card ${!item.available ? 'unavailable' : ''}`}>
+              <div key={item.id} className={`menu-card ${!item.isAvailable ? 'unavailable' : ''}`}>
                 <div className="menu-card-image">
-                  {item.image ? (
-                    <img src={item.image} alt={item.name} />
+                  {item.imageUrl ? (
+                    <img src={item.imageUrl} alt={item.name} />
                   ) : (
                     <div className="placeholder">
                       <Menu size={24} />
                     </div>
                   )}
-                  {!item.available && (
+                  {!item.isAvailable && (
                     <div className="unavailable-overlay">Unavailable</div>
                   )}
                 </div>
@@ -239,7 +239,7 @@ const MenuManagement = () => {
                   </div>
                   <div className="menu-card-actions">
                     <button onClick={() => handleToggleAvailability(item)} title="Toggle availability">
-                      {item.available ? <Eye size={18} /> : <EyeOff size={18} />}
+                      {item.isAvailable ? <Eye size={18} /> : <EyeOff size={18} />}
                     </button>
                     <button onClick={() => openEditModal(item)} title="Edit">
                       <Edit2 size={18} />
@@ -308,8 +308,8 @@ const MenuManagement = () => {
                 <label>Image URL</label>
                 <input
                   type="url"
-                  value={formData.image}
-                  onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+                  value={formData.imageUrl}
+                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
                   placeholder="https://..."
                 />
               </div>
@@ -317,8 +317,10 @@ const MenuManagement = () => {
                 <label>
                   <input
                     type="checkbox"
-                    checked={formData.available}
-                    onChange={(e) => setFormData({ ...formData, available: e.target.checked })}
+                    checked={formData.isAvailable}
+                    onChange={(e) =>
+                      setFormData({ ...formData, isAvailable: e.target.checked })
+                    }
                   />
                   Available for order
                 </label>

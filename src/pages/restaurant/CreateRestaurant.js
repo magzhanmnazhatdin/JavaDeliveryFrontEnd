@@ -18,12 +18,12 @@ const CreateRestaurant = () => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    cuisine: '',
     address: '',
     phone: '',
-    deliveryTime: '30',
-    minOrder: '1000',
-    image: '',
+    city: '',
+    email: '',
+    openingTime: '',
+    closingTime: '',
   });
 
   if (!isAuthenticated) {
@@ -37,13 +37,7 @@ const CreateRestaurant = () => {
     setError(null);
 
     try {
-      const data = {
-        ...formData,
-        deliveryTime: parseInt(formData.deliveryTime) || 30,
-        minOrder: parseFloat(formData.minOrder) || 0,
-      };
-
-      await restaurantOwnerApi.createRestaurant(data);
+      await restaurantOwnerApi.createRestaurant(formData);
       navigate('/restaurant-panel');
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to create restaurant');
@@ -90,32 +84,13 @@ const CreateRestaurant = () => {
             </div>
 
             <div className="form-group">
-              <label>Cuisine Type *</label>
-              <select
-                value={formData.cuisine}
-                onChange={(e) => setFormData({ ...formData, cuisine: e.target.value })}
-                required
-              >
-                <option value="">Select cuisine type</option>
-                <option value="Burgers">Burgers</option>
-                <option value="Pizza">Pizza</option>
-                <option value="Sushi">Sushi</option>
-                <option value="Asian">Asian</option>
-                <option value="Italian">Italian</option>
-                <option value="Mexican">Mexican</option>
-                <option value="Fast Food">Fast Food</option>
-                <option value="Desserts">Desserts</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label>Image URL</label>
+              <label>City *</label>
               <input
-                type="url"
-                value={formData.image}
-                onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-                placeholder="https://..."
+                type="text"
+                value={formData.city}
+                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                placeholder="City"
+                required
               />
             </div>
           </div>
@@ -149,33 +124,40 @@ const CreateRestaurant = () => {
                 placeholder="+1 (555) 123-4567"
               />
             </div>
+
+            <div className="form-group">
+              <label>Email</label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="contact@example.com"
+              />
+            </div>
           </div>
 
           <div className="form-section">
-            <h3>Delivery Settings</h3>
+            <h3>Working Hours</h3>
 
             <div className="form-row">
               <div className="form-group">
                 <label>
                   <Clock size={16} />
-                  Delivery Time (min)
+                  Opening Time
                 </label>
                 <input
-                  type="number"
-                  value={formData.deliveryTime}
-                  onChange={(e) => setFormData({ ...formData, deliveryTime: e.target.value })}
-                  min="10"
-                  max="180"
+                  type="time"
+                  value={formData.openingTime}
+                  onChange={(e) => setFormData({ ...formData, openingTime: e.target.value })}
                 />
               </div>
 
               <div className="form-group">
-                <label>Minimum Order ($)</label>
+                <label>Closing Time</label>
                 <input
-                  type="number"
-                  value={formData.minOrder}
-                  onChange={(e) => setFormData({ ...formData, minOrder: e.target.value })}
-                  min="0"
+                  type="time"
+                  value={formData.closingTime}
+                  onChange={(e) => setFormData({ ...formData, closingTime: e.target.value })}
                 />
               </div>
             </div>

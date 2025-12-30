@@ -46,6 +46,9 @@ export const authApi = {
   logout: () => api.post('/api/auth/logout'),
   getCurrentUser: () => api.get('/api/users/me'),
   updateProfile: (data) => api.put('/api/users/me', data),
+  // Role upgrade endpoints
+  becomeCourier: (data) => api.post('/api/auth/become-courier', data),
+  becomeRestaurant: (data) => api.post('/api/auth/become-restaurant', data),
 };
 
 // Restaurant API
@@ -112,7 +115,7 @@ export const preferencesApi = {
 // ============ RESTAURANT OWNER API ============
 export const restaurantOwnerApi = {
   // Restaurant management
-  getMyRestaurant: () => api.get('/api/restaurants/my-restaurant'),
+  getMyRestaurant: () => api.get('/api/restaurants/me'),
   createRestaurant: (data) => api.post('/api/restaurants', data),
   updateRestaurant: (id, data) => api.put(`/api/restaurants/${id}`, data),
   uploadImage: (id, formData) =>
@@ -127,32 +130,44 @@ export const restaurantOwnerApi = {
     api.put(`/api/menu-items/${itemId}`, data),
   deleteMenuItem: (itemId) =>
     api.delete(`/api/menu-items/${itemId}`),
-  toggleMenuItemAvailability: (itemId) =>
-    api.patch(`/api/menu-items/${itemId}/toggle-availability`),
+  toggleMenuItemAvailability: (itemId, available) =>
+    api.patch(`/api/menu-items/${itemId}/availability`, null, {
+      params: { available },
+    }),
 
   // Order management for restaurant
   getRestaurantOrders: (restaurantId, params) =>
     api.get(`/api/orders/restaurant/${restaurantId}`, { params }),
-  updateOrderStatus: (orderId, status) =>
-    api.patch(`/api/orders/${orderId}/status`, { status }),
+  updateOrderStatus: (orderId, status, reason) =>
+    api.patch(`/api/orders/${orderId}/status`, { status, reason }),
 
   // Statistics
   getStatistics: (restaurantId, params) =>
-    api.get(`/api/restaurants/${restaurantId}/statistics`, { params }),
+    api.get(`/api/orders/restaurant/${restaurantId}`, { params }),
+};
+
+// ============ RESTAURANT ORDERS API ============
+export const restaurantOrdersApi = {
+  getByRestaurant: (restaurantId, params) =>
+    api.get(`/api/restaurant-orders/restaurant/${restaurantId}`, { params }),
+  getById: (id) => api.get(`/api/restaurant-orders/${id}`),
+  accept: (id, data) => api.post(`/api/restaurant-orders/${id}/accept`, data || null),
+  reject: (id, data) => api.post(`/api/restaurant-orders/${id}/reject`, data),
+  startPreparing: (id) => api.post(`/api/restaurant-orders/${id}/start-preparing`),
+  markReady: (id) => api.post(`/api/restaurant-orders/${id}/ready`),
+  markPickedUp: (id) => api.post(`/api/restaurant-orders/${id}/picked-up`),
 };
 
 // ============ COURIER API ============
 export const courierApi = {
   // Delivery management
   getAvailableDeliveries: () => api.get('/api/deliveries/available'),
-  getMyDeliveriesAsCourier: () => api.get('/api/deliveries/courier/my-deliveries'),
+  getMyDeliveriesAsCourier: () => api.get('/api/deliveries/courier/me'),
   acceptDelivery: (deliveryId) => api.post(`/api/deliveries/${deliveryId}/accept`),
   updateDeliveryStatus: (deliveryId, status) =>
     api.patch(`/api/deliveries/${deliveryId}/status`, { status }),
-  updateLocation: (deliveryId, location) =>
-    api.patch(`/api/deliveries/${deliveryId}/location`, location),
-  completeDelivery: (deliveryId) =>
-    api.post(`/api/deliveries/${deliveryId}/complete`),
+  updateLocation: (location) =>
+    api.patch('/api/couriers/me/location', location),
 
   // Courier profile
   getCourierProfile: () => api.get('/api/couriers/me'),
@@ -160,7 +175,7 @@ export const courierApi = {
   toggleAvailability: () => api.patch('/api/couriers/me/toggle-availability'),
 
   // Statistics
-  getCourierStats: () => api.get('/api/couriers/me/statistics'),
+  getCourierStats: () => api.get('/api/deliveries/courier/me'),
 };
 
 // ============ ADMIN API ============

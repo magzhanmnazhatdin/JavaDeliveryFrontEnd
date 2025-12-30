@@ -9,6 +9,7 @@ import {
   Plus,
   Minus,
   ShoppingBag,
+  Utensils,
 } from 'lucide-react';
 import { restaurantApi } from '../services/api';
 import { useCart } from '../context/CartContext';
@@ -45,6 +46,14 @@ const RestaurantPage = () => {
   useEffect(() => {
     loadRestaurant();
   }, [loadRestaurant]);
+
+  const formatTime = (value) => {
+    if (!value) return '';
+    return value.length >= 5 ? value.slice(0, 5) : value;
+  };
+
+  const heroImage = restaurant?.imageUrl || restaurant?.image;
+  const heroStyle = heroImage ? { backgroundImage: `url(${heroImage})` } : {};
 
   const filteredMenu =
     selectedCategory === 'All'
@@ -88,10 +97,12 @@ const RestaurantPage = () => {
         </button>
       </header>
 
-      <div
-        className="restaurant-hero"
-        style={{ backgroundImage: `url(${restaurant.image})` }}
-      >
+      <div className="restaurant-hero" style={heroStyle}>
+        {!heroImage && (
+          <div className="hero-placeholder">
+            <Utensils size={36} strokeWidth={1} />
+          </div>
+        )}
         <div className="hero-overlay">
           <button
             className={`favorite-btn ${isFavorite ? 'active' : ''}`}
@@ -104,25 +115,32 @@ const RestaurantPage = () => {
 
       <div className="restaurant-info-section">
         <h1 className="restaurant-title">{restaurant.name}</h1>
-        <p className="restaurant-cuisine">{restaurant.cuisine}</p>
+        <p className="restaurant-cuisine">{restaurant.city}</p>
 
         <div className="restaurant-stats">
           <div className="stat">
             <Star size={18} fill="#F57C00" color="#F57C00" />
-            <span>{restaurant.rating}</span>
+            <span>
+              {restaurant.averageRating != null
+                ? Number(restaurant.averageRating).toFixed(1)
+                : 'New'}
+            </span>
           </div>
-          <div className="stat">
-            <Clock size={18} />
-            <span>{restaurant.deliveryTime} min</span>
-          </div>
+          {restaurant.openingTime && restaurant.closingTime && (
+            <div className="stat">
+              <Clock size={18} />
+              <span>
+                {formatTime(restaurant.openingTime)} - {formatTime(restaurant.closingTime)}
+              </span>
+            </div>
+          )}
           <div className="stat">
             <MapPin size={18} />
-            <span>{restaurant.address}</span>
+            <span>{restaurant.address || restaurant.city}</span>
           </div>
         </div>
 
         <p className="restaurant-description">{restaurant.description}</p>
-        <p className="min-order">Minimum order: ${restaurant.minOrder}</p>
       </div>
 
       <div className="menu-categories">
@@ -144,7 +162,17 @@ const RestaurantPage = () => {
             const quantity = getItemQuantity(item.id);
             return (
               <div key={item.id} className="menu-item">
-                <img src={item.image} alt={item.name} className="menu-item-image" />
+                {item.imageUrl || item.image ? (
+                  <img
+                    src={item.imageUrl || item.image}
+                    alt={item.name}
+                    className="menu-item-image"
+                  />
+                ) : (
+                  <div className="menu-item-image placeholder-image">
+                    <Utensils size={24} strokeWidth={1} />
+                  </div>
+                )}
                 <div className="menu-item-info">
                   <h3>{item.name}</h3>
                   <p className="menu-item-description">{item.description}</p>

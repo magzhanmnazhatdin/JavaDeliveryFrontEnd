@@ -19,9 +19,11 @@ import { orderApi, deliveryApi } from '../services/api';
 const orderSteps = [
   { key: 'PENDING', label: 'Order Placed', icon: Package },
   { key: 'CONFIRMED', label: 'Confirmed', icon: CheckCircle },
+  { key: 'ACCEPTED_BY_RESTAURANT', label: 'Accepted by restaurant', icon: Package },
   { key: 'PREPARING', label: 'Preparing', icon: Clock },
-  { key: 'READY', label: 'Ready', icon: Package },
-  { key: 'DELIVERING', label: 'On the Way', icon: Truck },
+  { key: 'READY_FOR_PICKUP', label: 'Ready for Pickup', icon: Package },
+  { key: 'PICKED_UP', label: 'Picked Up', icon: Truck },
+  { key: 'IN_DELIVERY', label: 'On the Way', icon: Truck },
   { key: 'DELIVERED', label: 'Delivered', icon: Home },
 ];
 
@@ -91,6 +93,28 @@ const OrderTrackingPage = () => {
     });
   };
 
+  const formatRestaurantId = (value) => {
+    if (!value) return 'Unknown';
+    return value.toString().slice(0, 8);
+  };
+
+  const formatPaymentMethod = (method) => {
+    switch (method) {
+      case 'CREDIT_CARD':
+        return 'Credit Card';
+      case 'DEBIT_CARD':
+        return 'Debit Card';
+      case 'CASH':
+        return 'Cash';
+      case 'DIGITAL_WALLET':
+        return 'Digital Wallet';
+      case 'BANK_TRANSFER':
+        return 'Bank Transfer';
+      default:
+        return 'Unknown';
+    }
+  };
+
   if (!isAuthenticated) return null;
 
   if (loading) {
@@ -113,10 +137,14 @@ const OrderTrackingPage = () => {
     );
   }
 
-  const currentStep = getCurrentStepIndex();
+  const currentStep = Math.max(0, getCurrentStepIndex());
   const isCancelled = order.status === 'CANCELLED';
+  const isRejected = order.status === 'REJECTED';
   const isDelivered = order.status === 'DELIVERED';
   const canCancel = ['PENDING', 'CONFIRMED'].includes(order.status);
+
+  const itemsSubtotal =
+    order.items?.reduce((sum, item) => sum + item.price * item.quantity, 0) || 0;
 
   return (
     <div className="order-tracking-page">
@@ -137,7 +165,13 @@ const OrderTrackingPage = () => {
             <div className="cancelled-status">
               <XCircle size={48} />
               <h2>Order Cancelled</h2>
-              <p>{order.cancelReason}</p>
+              <p>Your order was cancelled.</p>
+            </div>
+          ) : isRejected ? (
+            <div className="cancelled-status">
+              <XCircle size={48} />
+              <h2>Order Rejected</h2>
+              <p>{order.rejectionReason || 'The restaurant rejected the order.'}</p>
             </div>
           ) : isDelivered ? (
             <div className="delivered-status">
@@ -149,7 +183,9 @@ const OrderTrackingPage = () => {
             <>
               <div className="current-status">
                 <h2>{orderSteps[currentStep]?.label}</h2>
-                <p>Estimated delivery: {order.estimatedDeliveryTime}</p>
+                {order.estimatedDeliveryTime && (
+                  <p>Estimated delivery: {formatDate(order.estimatedDeliveryTime)}</p>
+                )}
               </div>
 
               <div className="status-timeline">
@@ -179,23 +215,23 @@ const OrderTrackingPage = () => {
         </section>
 
         {/* Courier Info */}
-        {delivery?.courier && !isCancelled && !isDelivered && (
+        {delivery?.courier && !isCancelled && !isRejected && !isDelivered && (
           <section className="courier-section">
             <h3>Courier</h3>
             <div className="courier-card">
               <div className="courier-avatar">
-                {delivery.courier.firstName?.charAt(0)}
+                {delivery.courier.name?.charAt(0)}
               </div>
               <div className="courier-info">
-                <h4>
-                  {delivery.courier.firstName} {delivery.courier.lastName}
-                </h4>
-                <p>{delivery.courier.vehicleType}</p>
+                <h4>{delivery.courier.name}</h4>
+                <p>{delivery.courier.phone}</p>
               </div>
               <div className="courier-actions">
-                <a href={`tel:${delivery.courier.phone}`} className="action-btn">
-                  <Phone size={20} />
-                </a>
+                {delivery.courier.phone && (
+                  <a href={`tel:${delivery.courier.phone}`} className="action-btn">
+                    <Phone size={20} />
+                  </a>
+                )}
                 <button className="action-btn">
                   <MessageCircle size={20} />
                 </button>
@@ -210,13 +246,9 @@ const OrderTrackingPage = () => {
           <div className="address-card">
             <MapPin size={20} />
             <div>
-              <p>
-                {order.deliveryAddress?.street}, {order.deliveryAddress?.building}
-                {order.deliveryAddress?.apartment &&
-                  `, Apt. ${order.deliveryAddress.apartment}`}
-              </p>
-              {order.comment && (
-                <p className="order-comment">Note: {order.comment}</p>
+              <p>{order.deliveryAddress}</p>
+              {order.customerNotes && (
+                <p className="order-comment">Note: {order.customerNotes}</p>
               )}
             </div>
           </div>
@@ -226,13 +258,11 @@ const OrderTrackingPage = () => {
         <section className="details-section">
           <h3>Order Details</h3>
           <div className="restaurant-info">
-            <img
-              src={order.restaurantImage}
-              alt={order.restaurantName}
-              className="restaurant-thumb"
-            />
+            <div className="restaurant-thumb placeholder-image">
+              <Package size={18} />
+            </div>
             <div>
-              <h4>{order.restaurantName}</h4>
+              <h4>Restaurant {formatRestaurantId(order.restaurantId)}</h4>
               <p>Ordered on {formatDate(order.createdAt)}</p>
             </div>
           </div>
@@ -250,27 +280,17 @@ const OrderTrackingPage = () => {
           <div className="order-summary">
             <div className="summary-row">
               <span>Subtotal</span>
-              <span>${order.subtotal}</span>
-            </div>
-            <div className="summary-row">
-              <span>Delivery</span>
-              <span>${order.deliveryFee}</span>
-            </div>
-            <div className="summary-row">
-              <span>Service Fee</span>
-              <span>${order.serviceFee}</span>
+              <span>${Number(itemsSubtotal).toFixed(2)}</span>
             </div>
             <div className="summary-row total">
               <span>Total</span>
-              <span>${order.totalAmount}</span>
+              <span>${Number(order.totalPrice || 0).toFixed(2)}</span>
             </div>
           </div>
 
           <div className="payment-info">
             <span>Payment method:</span>
-            <span>
-              {order.paymentMethod === 'CARD' ? 'Credit Card' : 'Cash'}
-            </span>
+            <span>{formatPaymentMethod(order.payment?.paymentMethod)}</span>
           </div>
         </section>
 

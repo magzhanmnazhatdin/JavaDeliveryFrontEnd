@@ -20,23 +20,25 @@ const CheckoutPage = () => {
 
   const [addresses, setAddresses] = useState([]);
   const [selectedAddress, setSelectedAddress] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('CARD');
+  const [paymentMethod, setPaymentMethod] = useState('CREDIT_CARD');
   const [comment, setComment] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [newAddress, setNewAddress] = useState({
-    street: '',
-    building: '',
+    label: '',
+    streetAddress: '',
     apartment: '',
-    entrance: '',
-    floor: '',
-    comment: '',
+    city: '',
+    state: '',
+    postalCode: '',
+    country: '',
+    deliveryInstructions: '',
   });
 
-  const deliveryFee = 500;
-  const serviceFee = Math.round(totalPrice * 0.05);
-  const grandTotal = totalPrice + deliveryFee + serviceFee;
+  const deliveryFee = 0;
+  const serviceFee = 0;
+  const grandTotal = totalPrice;
 
   const loadAddresses = useCallback(async () => {
     try {
@@ -61,6 +63,20 @@ const CheckoutPage = () => {
     loadAddresses();
   }, [isAuthenticated, cart, navigate, loadAddresses]);
 
+  const formatAddress = (address) => {
+    if (!address) return '';
+    if (address.fullAddress) return address.fullAddress;
+    const parts = [
+      address.streetAddress,
+      address.apartment ? `Apt ${address.apartment}` : null,
+      address.city,
+      address.state,
+      address.postalCode,
+      address.country,
+    ].filter(Boolean);
+    return parts.join(', ');
+  };
+
   const handleAddAddress = async (e) => {
     e.preventDefault();
     try {
@@ -69,12 +85,14 @@ const CheckoutPage = () => {
       setSelectedAddress(response.data);
       setShowAddressModal(false);
       setNewAddress({
-        street: '',
-        building: '',
+        label: '',
+        streetAddress: '',
         apartment: '',
-        entrance: '',
-        floor: '',
-        comment: '',
+        city: '',
+        state: '',
+        postalCode: '',
+        country: '',
+        deliveryInstructions: '',
       });
     } catch (err) {
       setError('Failed to add address');
@@ -93,11 +111,14 @@ const CheckoutPage = () => {
     try {
       const orderData = {
         restaurantId: currentRestaurant.id,
-        deliveryAddressId: selectedAddress.id,
+        deliveryAddress: formatAddress(selectedAddress),
+        deliveryLat: selectedAddress.latitude,
+        deliveryLng: selectedAddress.longitude,
+        customerNotes: comment,
         paymentMethod,
-        comment,
         items: cart.map((item) => ({
           menuItemId: item.dish.id,
+          name: item.dish.name,
           quantity: item.quantity,
           price: item.dish.price,
         })),
@@ -144,13 +165,9 @@ const CheckoutPage = () => {
                   >
                     <div className="address-info">
                       <p className="address-street">
-                        {addr.street}, {addr.building}
+                        {addr.label || 'Delivery Address'}
                       </p>
-                      <p className="address-details">
-                        {addr.apartment && `Apt. ${addr.apartment}`}
-                        {addr.entrance && `, Entrance ${addr.entrance}`}
-                        {addr.floor && `, Floor ${addr.floor}`}
-                      </p>
+                      <p className="address-details">{formatAddress(addr)}</p>
                     </div>
                     <div className="address-radio">
                       <div
@@ -180,8 +197,10 @@ const CheckoutPage = () => {
             </h2>
             <div className="payment-methods">
               <div
-                className={`payment-card ${paymentMethod === 'CARD' ? 'selected' : ''}`}
-                onClick={() => setPaymentMethod('CARD')}
+                className={`payment-card ${
+                  paymentMethod === 'CREDIT_CARD' ? 'selected' : ''
+                }`}
+                onClick={() => setPaymentMethod('CREDIT_CARD')}
               >
                 <CreditCard size={24} />
                 <span>Credit Card</span>
@@ -247,7 +266,7 @@ const CheckoutPage = () => {
 
             <div className="delivery-time">
               <Clock size={18} />
-              <span>Delivery in {currentRestaurant?.deliveryTime} min</span>
+              <span>Delivery time will be confirmed after checkout</span>
             </div>
 
             {error && <div className="checkout-error">{error}</div>}
@@ -271,24 +290,24 @@ const CheckoutPage = () => {
             <h2>New Address</h2>
             <form onSubmit={handleAddAddress}>
               <div className="form-group">
-                <label>Street</label>
+                <label>Label</label>
                 <input
                   type="text"
-                  value={newAddress.street}
+                  value={newAddress.label}
                   onChange={(e) =>
-                    setNewAddress({ ...newAddress, street: e.target.value })
+                    setNewAddress({ ...newAddress, label: e.target.value })
                   }
                   required
                 />
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Building</label>
+                  <label>Street Address</label>
                   <input
                     type="text"
-                    value={newAddress.building}
+                    value={newAddress.streetAddress}
                     onChange={(e) =>
-                      setNewAddress({ ...newAddress, building: e.target.value })
+                      setNewAddress({ ...newAddress, streetAddress: e.target.value })
                     }
                     required
                   />
@@ -306,25 +325,61 @@ const CheckoutPage = () => {
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Entrance</label>
+                  <label>City</label>
                   <input
                     type="text"
-                    value={newAddress.entrance}
+                    value={newAddress.city}
                     onChange={(e) =>
-                      setNewAddress({ ...newAddress, entrance: e.target.value })
+                      setNewAddress({ ...newAddress, city: e.target.value })
+                    }
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Postal Code</label>
+                  <input
+                    type="text"
+                    value={newAddress.postalCode}
+                    onChange={(e) =>
+                      setNewAddress({ ...newAddress, postalCode: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>State</label>
+                  <input
+                    type="text"
+                    value={newAddress.state}
+                    onChange={(e) =>
+                      setNewAddress({ ...newAddress, state: e.target.value })
                     }
                   />
                 </div>
                 <div className="form-group">
-                  <label>Floor</label>
+                  <label>Country</label>
                   <input
                     type="text"
-                    value={newAddress.floor}
+                    value={newAddress.country}
                     onChange={(e) =>
-                      setNewAddress({ ...newAddress, floor: e.target.value })
+                      setNewAddress({ ...newAddress, country: e.target.value })
                     }
                   />
                 </div>
+              </div>
+              <div className="form-group">
+                <label>Delivery Instructions</label>
+                <input
+                  type="text"
+                  value={newAddress.deliveryInstructions}
+                  onChange={(e) =>
+                    setNewAddress({
+                      ...newAddress,
+                      deliveryInstructions: e.target.value,
+                    })
+                  }
+                />
               </div>
               <div className="modal-actions">
                 <button type="button" onClick={() => setShowAddressModal(false)}>

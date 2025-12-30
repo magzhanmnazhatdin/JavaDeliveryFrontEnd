@@ -15,11 +15,14 @@ import { orderApi } from '../services/api';
 const statusConfig = {
   PENDING: { label: 'Pending', color: '#FFA000', icon: Clock },
   CONFIRMED: { label: 'Confirmed', color: '#1976D2', icon: Package },
+  ACCEPTED_BY_RESTAURANT: { label: 'Accepted', color: '#0288D1', icon: Package },
   PREPARING: { label: 'Preparing', color: '#7B1FA2', icon: Package },
-  READY: { label: 'Ready for Delivery', color: '#00796B', icon: Package },
-  DELIVERING: { label: 'On the Way', color: '#E64A19', icon: Package },
+  READY_FOR_PICKUP: { label: 'Ready for Pickup', color: '#00796B', icon: Package },
+  PICKED_UP: { label: 'Picked Up', color: '#5D4037', icon: Package },
+  IN_DELIVERY: { label: 'On the Way', color: '#E64A19', icon: Package },
   DELIVERED: { label: 'Delivered', color: '#388E3C', icon: CheckCircle },
   CANCELLED: { label: 'Cancelled', color: '#D32F2F', icon: XCircle },
+  REJECTED: { label: 'Rejected', color: '#C62828', icon: XCircle },
 };
 
 const OrdersPage = () => {
@@ -52,9 +55,10 @@ const OrdersPage = () => {
   const filteredOrders = orders.filter((order) => {
     if (filter === 'all') return true;
     if (filter === 'active')
-      return !['DELIVERED', 'CANCELLED'].includes(order.status);
+      return !['DELIVERED', 'CANCELLED', 'REJECTED'].includes(order.status);
     if (filter === 'completed') return order.status === 'DELIVERED';
-    if (filter === 'cancelled') return order.status === 'CANCELLED';
+    if (filter === 'cancelled')
+      return ['CANCELLED', 'REJECTED'].includes(order.status);
     return true;
   });
 
@@ -67,6 +71,11 @@ const OrdersPage = () => {
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  const formatRestaurantId = (id) => {
+    if (!id) return 'Unknown';
+    return id.toString().slice(0, 8);
   };
 
   if (!isAuthenticated) return null;
@@ -143,13 +152,11 @@ const OrdersPage = () => {
                 >
                   <div className="order-main">
                     <div className="order-restaurant">
-                      <img
-                        src={order.restaurantImage}
-                        alt={order.restaurantName}
-                        className="restaurant-thumb"
-                      />
+                      <div className="restaurant-thumb placeholder-image">
+                        <Package size={18} />
+                      </div>
                       <div>
-                        <h3>{order.restaurantName}</h3>
+                        <h3>Restaurant {formatRestaurantId(order.restaurantId)}</h3>
                         <p className="order-date">{formatDate(order.createdAt)}</p>
                       </div>
                     </div>
@@ -164,18 +171,16 @@ const OrdersPage = () => {
                   </div>
 
                   <div className="order-items-preview">
-                    {order.items?.slice(0, 3).map((item, idx) => (
-                      <span key={idx}>
-                        {item.quantity}x {item.name}
-                      </span>
-                    ))}
-                    {order.items?.length > 3 && (
-                      <span>+{order.items.length - 3} more</span>
+                    <span>{order.itemCount || 0} item(s)</span>
+                    {order.deliveryAddress && (
+                      <span>{order.deliveryAddress}</span>
                     )}
                   </div>
 
                   <div className="order-footer">
-                    <span className="order-total">${order.totalAmount}</span>
+                    <span className="order-total">
+                      ${Number(order.totalPrice || 0).toFixed(2)}
+                    </span>
                     <ChevronRight size={20} />
                   </div>
                 </Link>
